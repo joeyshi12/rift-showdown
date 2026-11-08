@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["shared", "server", "client"]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.release.package.rift-client]
+opt-level = "s"
+
+# Password hashing is far too slow unoptimised; keep debug builds and tests usable.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3

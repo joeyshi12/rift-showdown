@@ -1,0 +1,13 @@
+/target
+/.tools
+/dist
+/e2e/node_modules
+/e2e/screenshots
+/data/imgcache
+/data/accounts.db*
+# Raw API downloads used by data/fetch_cards.py --offline; refetch with data/fetch_cards.py.
+/data/riftcodex_raw.json
+/data/riot_gallery_raw.json
+__pycache__/
+# Local toolchain setup.
+/env.sh

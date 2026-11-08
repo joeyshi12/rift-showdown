@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rift Online">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<title>Rift Online: play Riftbound on a 3D table</title>
+<meta name="description" content="Play Riftbound online in a 3D duel field: room codes, matchmaking, spectating, goldfish and sealed practice.">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l12 14-12 14L4 16z' fill='%23dcb86a'/%3E%3C/svg%3E">
+</head>
+<body>
+<canvas id="table"></canvas>
+<div id="overlay"></div>
+<div id="screen"><div class="boot"><div class="boot-logo"><span class="l1">Rift</span><span class="l2">Online</span></div><div class="spinner"></div><div class="dim">Loading the card library…</div></div></div>
+<div id="queue"></div>
+<div id="toasts"></div>
+<div id="auth"></div>
+<div id="net-lost"></div>
+<script>
+  // Home hero: if an image fails, try the next source in data-fb ("a|b|c").
+  function heroFallback(img) {
+    const next = (img.dataset.fb || '').split('|').filter(Boolean);
+    if (!next.length) return;
+    img.removeAttribute('srcset');
+    img.removeAttribute('sizes');
+    img.dataset.fb = next.slice(1).join('|');
+    if (next.length === 1) img.className = 'hero-art card';
+    img.src = next[0];
+  }
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  }
+</script>
+<script type="module">
+  import init, { debug_state, debug_zone_point } from './pkg/rift_client.js';
+  init().then(() => { window.__state = () => JSON.parse(debug_state()); window.__zone = (z) => debug_zone_point(JSON.stringify(z)); });
+</script>
+</body>
+</html>

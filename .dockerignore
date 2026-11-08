@@ -1,0 +1,13 @@
+# The image builds from sources and the card list only.
+.git
+.github
+.tools
+target
+dist
+e2e
+deploy
+data/imgcache
+data/accounts.db*
+data/*_raw.json
+data/precons
+env.sh

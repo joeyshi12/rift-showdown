@@ -1,0 +1,76 @@
+Seraphine Preconstructed Decklist
+Legend:
+Starry-Eyed Songstress
+Champion Options:
+1 Seraphine, Not Alone
+2 Seraphine, Inspiring
+Main Deck:
+1 Encore
+1 Heimerdinger, Academy Instructor
+2 Raucous Anthem
+2 Piltovan Guidebot
+1 Dune Devourer
+1 The Empyrean
+2 Steadfast Outrider
+2 Rousing Display
+2 Supernova
+1 Burn Away
+3 Concert Poster
+3 Strigian Oracle
+2 High Note
+2 Fanfare
+2 Hunting Dog
+2 Industrious Mechsmith
+1 Herald of the Emperor
+1 Party Crasher
+2 Faithful Manufactor
+2 Meticulous Restorationist
+1 For Demacia!
+1 Moonlight Affliction
+Battlefields:
+Black Rose Sanctum
+Ruined Monastery
+Valley of Idols
+Rune Pool:
+6 Mind Rune
+6 Order Rune
+Tokens:
+3 Mech // Recruit
+3 Bird // Buff
+Evelynn Preconstructed Decklist
+Legend:
+Agony’s Embrace
+Champion Options:
+1 Evelynn, Consuming
+1 Evelynn, In Control
+2 Evelynn, Entrancing
+Main Deck:
+1 Last Caress
+1 Bushwhack Trap
+1 K'Sante, Courageous
+2 Gutter Guardian
+1 Demon Shade
+1 The Good Stuff
+2 Elnuk Herd
+2 Reckless Innovator
+2 Wind and Ghosts
+1 Pitiless Stalker
+3 Sneaky Zeebles
+3 Siren of the Shallows
+2 Hold 'Em
+2 The Waters' Wage
+2 Momentary Companion
+2 Suave Negotiator
+2 Pakaa Cub
+2 Wrath of the Freljord
+2 Black Market Broker
+2 Siren's Song
+Battlefields:
+Bandle Scouts' Academy
+Rakelstake
+Bandle Tree
+Rune Pool:
+6 Body Rune
+6 Chaos Rune
+Tokens:
+5 Gold // Bomb

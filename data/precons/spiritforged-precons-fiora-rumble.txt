@@ -1,0 +1,167 @@
+Rumble
+ITEM
+QTY
+Card Number
+Ferrous Forerunner
+2
+SFD-021/221
+Rumble, Hotheaded
+2
+SFD-026/221
+Gem Jammer
+3
+SFD-007/221
+Dangerous Duo
+3
+OGN-016/298
+Forecaster
+3
+SFD-065/221
+Bubble Bot
+3
+SFD-062/221
+Plundering Poro
+3
+SFD-069/221
+Breakneck Mech
+2
+SFD-071/221
+Rumble, Scrapper
+1
+SFD-089/221
+Consult the Past
+2
+OGN-083/298
+Singularity
+1
+OGN-105/298
+Wages of Pain
+2
+SFD-070/221
+Frigid Touch
+2
+SFD-066/221
+Production Surge
+3
+SFD-076/221
+Stupefy
+2
+OGN-095/298
+Void Seeker
+3
+OGN-024/298
+Danger Zone
+1
+SFD-182/221
+Assembly Rig
+1
+SFD-019/221
+Long Sword
+1
+SFD-022/221
+Mechanized Menace
+1
+SFD-181/221
+Minefield
+1
+SFD-212/221
+Ravenbloom Conservatory
+1
+SFD-215/221
+Treasure Hoard
+1
+SFD-220/221
+Mind Rune
+6
+OGN-089/298
+Fury Rune
+6
+OGN-007/298
+Mech Token
+7
+SFD-T01
+Fiora
+ITEM
+QTY
+Card Number
+Fiora, Peerless
+2
+SFD-110/221
+Jaull-Fish
+2
+SFD-103/221
+Laurent Duelist
+2
+SFD-156/221
+Lucian, Merciless
+2
+SFD-113/221
+Veteran Poro
+2
+SFD-099/221
+Pit Rookie
+2
+OGN-136/298
+Dauntless Vanguard
+2
+SFD-093/221
+Unsung Hero
+2
+SFD-167/221
+Royal Guard
+2
+SFD-157/221
+Fiora, Worthy
+1
+SFD-180/221
+Yone, Blademaster
+1
+SFD-116/221
+Punch First
+2
+SFD-097/221
+Strike Down
+3
+SFD-107/221
+Vengeance
+2
+OGN-229/298
+Riposte
+1
+SFD-206/221
+Show of Strength
+2
+SFD-106/221
+B.F. Sword
+3
+SFD-161/221
+Warmog's Armor
+3
+SFD-108/221
+Sacred Shears
+1
+SFD-172/221
+Doran's Blade
+3
+SFD-095/221
+Grand Duelist
+1
+SFD-205/221
+Ornn's Forge
+1
+SFD-213/221
+Veiled Temple
+1
+SFD-221/221
+Sunken Temple
+1
+SFD-218/221
+Order Rune
+6
+OGN-214/298
+Body Rune
+6
+OGN-126/298
+Sand Soldier Token
+5
+SFD-T02
