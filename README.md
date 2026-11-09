@@ -1,4 +1,4 @@
-# Rift Online
+# Rift Showdown
 
 A browser card table for **Riftbound**, the League of Legends TCG. Rust server, WebAssembly client.
 
@@ -18,7 +18,7 @@ card images and names belong to Riot Games.
 ## Run with Docker
 
 ```sh
-docker run -p 8080:8080 -v rift-data:/data ghcr.io/joeyshi12/rift-online:latest
+docker run -p 8080:8080 -v rift-data:/data ghcr.io/joeyshi12/rift-showdown:latest
 ```
 
 The image serves on port 8080 and stores accounts and the card image cache in `/data`. It runs as

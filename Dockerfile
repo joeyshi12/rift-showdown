@@ -1,7 +1,7 @@
-# Rift Online: the axum server plus the WebAssembly client it serves.
+# Rift Showdown: the axum server plus the WebAssembly client it serves.
 #
-#   docker build -t rift-online .
-#   docker run -p 8080:8080 -v rift-data:/data rift-online
+#   docker build -t rift-showdown .
+#   docker run -p 8080:8080 -v rift-data:/data rift-showdown
 #
 # Persistent state (accounts database, card image cache) lives in /data.
 

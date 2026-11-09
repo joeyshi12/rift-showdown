@@ -1,4 +1,4 @@
-//! Shared logic for Rift Online: card database, deck codes, decklists,
+//! Shared logic for Rift Showdown: card database, deck codes, decklists,
 //! the tabletop game engine, sealed pack generation and the network protocol.
 //! Compiled both natively (server, tests) and to wasm32 (client).
 

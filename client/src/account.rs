@@ -471,13 +471,13 @@ fn dialog_html(app: &App) -> String {
     let reason = app.auth.reason.as_ref().map(|r| format!("<p class=\"au-reason\">{}</p>", esc(r))).unwrap_or_default();
     let body = match view {
         AuthView::SignIn => format!(
-            r#"<h2 class="au-t">Sign in to Rift Online</h2>{reason}{provs}
+            r#"<h2 class="au-t">Sign in to Rift Showdown</h2>{reason}{provs}
 <label class="fld"><span class="fl">Email address</span><input id="si-email" type="email" autocomplete="email" maxlength="254" data-enter="auth-sign-in"></label>
 {pw}
 <div class="au-forgot"><button class="lnk" data-act="auth-forgot">Forgot password?</button></div>
 <div id="au-err" class="au-err" role="alert"></div>
 <button class="btn primary au-go" id="au-go" data-act="auth-sign-in">Continue</button>
-<div class="au-foot">New to Rift Online? <button class="lnk on" data-act="auth-switch" data-arg="up">Create an account</button></div>"#,
+<div class="au-foot">New to Rift Showdown? <button class="lnk on" data-act="auth-switch" data-arg="up">Create an account</button></div>"#,
             provs = provider_buttons(app),
             pw = pw_field("si-pw", "current-password", ""),
         ),

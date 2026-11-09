@@ -1,4 +1,4 @@
-// Headless end-to-end tests for Rift Online. Starts nothing itself: expects the
+// Headless end-to-end tests for Rift Showdown. Starts nothing itself: expects the
 // server at BASE (default http://127.0.0.1:8787). Run: npm test  (see README)
 import { chromium, devices } from 'playwright';
 import assert from 'node:assert/strict';

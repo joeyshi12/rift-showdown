@@ -1,4 +1,4 @@
-//! HTTP + WebSocket server for Rift Online.
+//! HTTP + WebSocket server for Rift Showdown.
 //!
 //! Routes:
 //!   GET /ws           WebSocket game protocol (JSON `ClientMsg`/`ServerMsg`)
@@ -74,7 +74,7 @@ pub fn load_state(cfg: &Config) -> Result<AppState, String> {
     let db = CardDb::from_json(&json)?;
     let img_cache = cfg.img_cache.clone().unwrap_or_else(|| cfg.data_dir.join("imgcache"));
     std::fs::create_dir_all(&img_cache).map_err(|e| format!("creating the image cache {}: {e} (the server needs write access there)", img_cache.display()))?;
-    let http = reqwest::Client::builder().timeout(Duration::from_secs(20)).user_agent("rift-online/0.1").build().map_err(|e| e.to_string())?;
+    let http = reqwest::Client::builder().timeout(Duration::from_secs(20)).user_agent("rift-showdown/0.1").build().map_err(|e| e.to_string())?;
     let accounts = Accounts::open(&cfg.accounts_db.clone().unwrap_or_else(|| cfg.data_dir.join("accounts.db")))?;
     Ok(AppState {
         hub: Arc::new(Mutex::new(Hub::new(Arc::new(db)))),

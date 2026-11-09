@@ -361,9 +361,9 @@ pub async fn forgot_password(State(s): State<AppState>, headers: HeaderMap, Json
         let link = format!("{base}/?reset={token}");
         let mail = crate::mail::Mail {
             to: email.clone(),
-            subject: "Reset your Rift Online password".into(),
+            subject: "Reset your Rift Showdown password".into(),
             body: format!(
-                "Hi {},\n\nSomeone asked to reset the password for your Rift Online account. To choose a new password, open this link within {} minutes:\n\n{link}\n\nIf you didn't ask for this, ignore this email. Your password stays the same.\n",
+                "Hi {},\n\nSomeone asked to reset the password for your Rift Showdown account. To choose a new password, open this link within {} minutes:\n\n{link}\n\nIf you didn't ask for this, ignore this email. Your password stays the same.\n",
                 user.name,
                 crate::accounts::RESET_MINUTES
             ),

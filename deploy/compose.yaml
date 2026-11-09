@@ -1,14 +1,14 @@
 # Example deployment behind a reverse proxy on a shared Docker network.
-#   mkdir -p data/rift-online && cp .env.example .env && docker compose up -d
+#   mkdir -p data/rift-showdown && cp .env.example .env && docker compose up -d
 networks:
   gateway:
     external: true
 
 services:
-  rift-online:
+  rift-showdown:
     # Pin a release (or a 12-character commit id); :edge moves on every push to main.
-    image: ghcr.io/joeyshi12/rift-online:${RIFT_VERSION:-latest}
-    container_name: rift-online
+    image: ghcr.io/joeyshi12/rift-showdown:${RIFT_VERSION:-latest}
+    container_name: rift-showdown
     restart: unless-stopped
     # /data must be writable by this user (the image default is 65532).
     user: "1000:1000"
@@ -16,4 +16,4 @@ services:
       - gateway
     env_file: .env
     volumes:
-      - ./data/rift-online:/data
+      - ./data/rift-showdown:/data

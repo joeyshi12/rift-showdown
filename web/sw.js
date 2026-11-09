@@ -1,4 +1,4 @@
-// Rift Online service worker. The app shell and card list are network-first, so an
+// Rift Showdown service worker. The app shell and card list are network-first, so an
 // online visit always gets the latest build, and offline the cached copy still runs
 // decks, sealed and solo play. Card images are immutable, so they are cache-first.
 const VERSION = '__BUILD__';

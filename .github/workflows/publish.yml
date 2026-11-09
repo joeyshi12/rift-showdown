@@ -1,6 +1,6 @@
 name: publish
 
-# Tags pushed to ghcr.io/<owner>/rift-online:
+# Tags pushed to ghcr.io/<owner>/rift-showdown:
 #   v1.2.3 tag   -> 1.2.3, 1.2, latest
 #   push to main -> edge, <12-char commit id>
 # A release tag and the push to main that carries it are two builds; only the
@@ -14,7 +14,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}/rift-showdown
 
 jobs:
   test:

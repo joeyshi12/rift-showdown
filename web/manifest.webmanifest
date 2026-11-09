@@ -1,6 +1,6 @@
 {
-  "name": "Rift Online",
-  "short_name": "Rift Online",
+  "name": "Rift Showdown",
+  "short_name": "Rift Showdown",
   "description": "Play Riftbound on a 3D table: rooms, matchmaking, spectating, goldfish and sealed practice.",
   "id": "/",
   "start_url": "/",

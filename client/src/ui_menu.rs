@@ -154,7 +154,7 @@ fn deck_options(app: &App, selected: Option<&str>, include_sealed: bool) -> Stri
 
 fn top_bar(app: &App, title: &str) -> String {
     format!(
-        "<header class=\"topbar\"><div class=\"logo\" data-act=\"tab\" data-arg=\"Duel\">Rift Online</div><div class=\"tb-title\">{}</div>{}</header>",
+        "<header class=\"topbar\"><div class=\"logo\" data-act=\"tab\" data-arg=\"Duel\">Rift Showdown</div><div class=\"tb-title\">{}</div>{}</header>",
         esc(title),
         crate::account::profile_html(app)
     )

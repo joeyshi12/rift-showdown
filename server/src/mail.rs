@@ -3,7 +3,7 @@
 //! `RIFT_SMTP_URL` selects an SMTP server, e.g.
 //! `smtps://user:pass@smtp.example.com` (TLS, port 465) or
 //! `smtp://user:pass@smtp.example.com:587?tls=required` (STARTTLS).
-//! `RIFT_MAIL_FROM` is the sender, e.g. `Rift Online <noreply@example.com>`.
+//! `RIFT_MAIL_FROM` is the sender, e.g. `Rift Showdown <noreply@example.com>`.
 //! Without `RIFT_SMTP_URL` the server writes messages to its log, which is
 //! enough for local testing but means nobody else receives them.
 

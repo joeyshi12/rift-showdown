@@ -30,7 +30,7 @@ async fn main() {
         eprintln!("cannot bind {bind}: {e}");
         std::process::exit(1);
     });
-    tracing::info!("Rift Online listening on http://{bind} (dist: {})", cfg.dist_dir.display());
+    tracing::info!("Rift Showdown listening on http://{bind} (dist: {})", cfg.dist_dir.display());
     // Stop at once on Ctrl+C or SIGTERM (docker stop). Matches only live in memory,
     // and SQLite commits are already durable, so there is nothing to drain.
     tokio::select! {

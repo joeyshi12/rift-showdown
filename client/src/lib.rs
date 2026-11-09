@@ -1,4 +1,4 @@
-//! Rift Online browser client (Rust → WebAssembly).
+//! Rift Showdown browser client (Rust → WebAssembly).
 
 pub mod app;
 pub mod board;
