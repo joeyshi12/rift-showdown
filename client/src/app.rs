@@ -226,7 +226,7 @@ pub struct App {
     pub home_deck: Option<String>,
     pub dirty: bool,
     pub frames: u64,
-    pub auth: crate::account::AuthUi,
+    pub names: crate::name::NameUi,
 }
 
 const DECKS_KEY: &str = "rift.decks.v1";
@@ -272,7 +272,7 @@ pub fn new_id() -> String {
 impl App {
     pub fn new(db: CardDb) -> App {
         let db = Rc::new(db);
-        let name = "Player".to_string();
+        let name = crate::name::saved();
         let mut decks: Vec<SavedDeck> = dom::local_get(DECKS_KEY).and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
         if decks.is_empty() {
             decks = riot_decks();
@@ -303,7 +303,7 @@ impl App {
             home_deck: dom::local_get(HOME_DECK_KEY),
             dirty: true,
             frames: 0,
-            auth: Default::default(),
+            names: Default::default(),
         };
         app.save_decks();
         app
@@ -353,39 +353,21 @@ impl App {
 
     pub fn handle_server(&mut self, m: ServerMsg) {
         match m {
-            ServerMsg::Welcome { id, token, name, signed_in } => {
+            ServerMsg::Welcome { id, token, name } => {
                 self.my_id = id;
                 self.token = Some(token);
-                if signed_in {
-                    self.name = name.clone();
-                    if let Some(u) = self.auth.user.as_mut() {
-                        u.name = name;
-                    }
-                } else if self.auth.user.is_some() {
-                    // The session ended on the server (expired or signed out elsewhere).
-                    self.auth.user = None;
-                    self.name = "Player".into();
-                    self.toast("Your session ended. Sign in again.", true);
-                }
-                // Invite links: players need an account, spectators don't. Keep the
-                // link in the address bar until it can be used, so signing in
-                // (which reconnects) picks it up.
+                self.name = name;
+                // Invite links ask for a name, then join.
                 if let Some(code) = dom::query_param("room") {
                     let spec = dom::query_param("spectate").is_some();
-                    if signed_in || spec {
-                        net::send(&ClientMsg::JoinRoom { code, spectate: spec });
-                        let _ = dom::window().history().map(|h| h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/")));
-                    } else {
-                        crate::account::open(self, crate::account::AuthView::SignIn, Some(&format!("Sign in to join room {}.", code.to_uppercase())));
-                    }
+                    let _ = dom::window().history().map(|h| h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/")));
+                    crate::name::ask(self, ClientMsg::JoinRoom { code, spectate: spec });
                 }
                 self.dirty = true;
                 self.render();
             }
-            ServerMsg::SignInRequired { message } => crate::account::open(self, crate::account::AuthView::SignIn, Some(&message)),
-            ServerMsg::SignedOut => crate::account::on_signed_out(self),
             ServerMsg::Replaced => {
-                self.auth.replaced = true;
+                self.names.replaced = true;
                 self.room = None;
                 self.queue = None;
                 if self.game.as_ref().map(|g| !g.is_local()).unwrap_or(false) {
@@ -620,10 +602,6 @@ impl App {
 
     pub fn on_click(&mut self, act: &str, arg: &str, ev: &MouseEvent) {
         let shift = ev.shift_key();
-        if self.auth.menu_open && act != "acct-menu" {
-            self.auth.menu_open = false;
-            self.render();
-        }
         if crate::ui_menu::handle(self, act, arg, shift) {
             return;
         }
@@ -660,6 +638,10 @@ impl App {
         }
         if target_is_input || self.screen != Screen::Game {
             if e.key() == "Escape" {
+                if self.names.pending.is_some() {
+                    crate::name::handle(self, "name-close");
+                    return;
+                }
                 crate::ui_menu::handle(self, "close-modal", "", false);
             }
             return;
@@ -695,7 +677,7 @@ impl App {
         }
         self.render_queue();
         self.render_toasts();
-        crate::account::render_dialog(self);
+        crate::name::render_dialog(self);
     }
 
     pub fn render_toasts(&mut self) {
@@ -842,7 +824,7 @@ pub fn on_connection(up: bool) {
 }
 
 pub fn hello() -> ClientMsg {
-    with_app(|a| ClientMsg::Hello { token: a.token.clone() }).unwrap_or(ClientMsg::Hello { token: None })
+    with_app(|a| ClientMsg::Hello { token: a.token.clone(), name: a.name.clone() }).unwrap_or_else(|| ClientMsg::Hello { token: None, name: crate::name::saved() })
 }
 
 pub fn move_action(card: CardId, to: Zone, pos: Pos) -> Action {

@@ -1,5 +1,5 @@
 # Example deployment behind a reverse proxy on a shared Docker network.
-#   mkdir -p data/rift-showdown && cp .env.example .env && docker compose up -d
+#   mkdir -p data/rift-showdown && docker compose up -d
 networks:
   gateway:
     external: true
@@ -14,6 +14,5 @@ services:
     user: "1000:1000"
     networks:
       - gateway
-    env_file: .env
     volumes:
       - ./data/rift-showdown:/data

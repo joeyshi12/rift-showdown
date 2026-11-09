@@ -5,24 +5,18 @@
 //!   GET /cards.json   card database
 //!   GET /img?u=URL    same-origin proxy + disk cache for official card images
 //!   GET /healthz      liveness
-//!   /api/*, /auth/*   accounts and sign-in (see `auth`)
 //!   everything else   static client files from the dist directory
 
-pub mod accounts;
-pub mod auth;
 pub mod hub;
-pub mod mail;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::Router;
 use futures_util::{SinkExt, StreamExt};
-use accounts::Accounts;
-use auth::{AuthConfig, AuthRuntime};
-use hub::{Hub, Identity};
+use hub::Hub;
 use rift_shared::cards::CardDb;
 use rift_shared::protocol::{ClientMsg, ServerMsg, MAX_MSG_BYTES};
 use std::collections::HashMap;
@@ -52,21 +46,13 @@ pub struct AppState {
     pub cards_json: Arc<String>,
     pub img_cache: PathBuf,
     pub http: reqwest::Client,
-    pub accounts: Arc<Accounts>,
-    pub auth: Arc<AuthConfig>,
-    pub auth_rt: Arc<Mutex<AuthRuntime>>,
-    pub mailer: Arc<mail::Mailer>,
 }
 
 pub struct Config {
     pub data_dir: PathBuf,
     pub dist_dir: PathBuf,
-    /// SQLite file for accounts; defaults to `<data_dir>/accounts.db`.
-    pub accounts_db: Option<PathBuf>,
     /// Card image cache directory; defaults to `<data_dir>/imgcache`.
     pub img_cache: Option<PathBuf>,
-    pub auth: AuthConfig,
-    pub mailer: mail::Mailer,
 }
 
 pub fn load_state(cfg: &Config) -> Result<AppState, String> {
@@ -75,16 +61,11 @@ pub fn load_state(cfg: &Config) -> Result<AppState, String> {
     let img_cache = cfg.img_cache.clone().unwrap_or_else(|| cfg.data_dir.join("imgcache"));
     std::fs::create_dir_all(&img_cache).map_err(|e| format!("creating the image cache {}: {e} (the server needs write access there)", img_cache.display()))?;
     let http = reqwest::Client::builder().timeout(Duration::from_secs(20)).user_agent("rift-showdown/0.1").build().map_err(|e| e.to_string())?;
-    let accounts = Accounts::open(&cfg.accounts_db.clone().unwrap_or_else(|| cfg.data_dir.join("accounts.db")))?;
     Ok(AppState {
         hub: Arc::new(Mutex::new(Hub::new(Arc::new(db)))),
         cards_json: Arc::new(json),
         img_cache,
         http,
-        accounts: Arc::new(accounts),
-        auth: Arc::new(cfg.auth.clone()),
-        auth_rt: Arc::new(Mutex::new(AuthRuntime::default())),
-        mailer: Arc::new(cfg.mailer.clone()),
     })
 }
 
@@ -96,17 +77,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/cards.json", get(cards_handler))
         .route("/img", get(img_handler))
         .route("/healthz", get(|| async { "ok" }))
-        .route("/api/me", get(auth::me))
-        .route("/api/sign-up", post(auth::sign_up))
-        .route("/api/sign-in", post(auth::sign_in))
-        .route("/api/sign-out", post(auth::sign_out))
-        .route("/api/account", post(auth::update_account))
-        .route("/api/forgot-password", post(auth::forgot_password))
-        .route("/api/reset-password", post(auth::reset_password))
-        .route("/auth/{provider}/start", get(auth::oauth_start))
-        .route("/auth/{provider}/callback", get(auth::oauth_callback))
         .fallback_service(statics)
-        // Reset links carry a token in the URL; never pass the URL on to other sites.
         .layer(SetResponseHeaderLayer::if_not_present(header::REFERRER_POLICY, HeaderValue::from_static("same-origin")))
         .layer(SetResponseHeaderLayer::if_not_present(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
         .with_state(state)
@@ -170,27 +141,34 @@ async fn img_handler(State(s): State<AppState>, Query(q): Query<HashMap<String, 
 }
 
 async fn ws_handler(ws: WebSocketUpgrade, State(s): State<AppState>, headers: HeaderMap) -> Response {
-    // Browsers send cookies on cross-site WebSocket handshakes; refuse other origins.
-    if !auth::same_origin(&headers) {
+    // Only this site's pages may open the game socket.
+    if !same_origin(&headers) {
         return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
     }
-    let identity = auth::session_user(&s, &headers).map(|u| Identity { user_id: u.id, name: u.name });
-    ws.max_message_size(MAX_MSG_BYTES).on_upgrade(move |socket| client_loop(socket, s, identity))
+    ws.max_message_size(MAX_MSG_BYTES).on_upgrade(move |socket| client_loop(socket, s))
 }
 
-async fn client_loop(socket: WebSocket, s: AppState, identity: Option<Identity>) {
+/// No Origin header (non-browser clients) is allowed; otherwise it must match Host.
+fn same_origin(headers: &HeaderMap) -> bool {
+    let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) else { return true };
+    let host = headers.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
+    let origin_host = origin.split_once("://").map(|(_, h)| h).unwrap_or(origin);
+    !host.is_empty() && origin_host.eq_ignore_ascii_case(host)
+}
+
+async fn client_loop(socket: WebSocket, s: AppState) {
     let (mut sink, mut stream) = socket.split();
     // First message must be Hello.
     let first = tokio::time::timeout(Duration::from_secs(15), stream.next()).await;
-    let token = match first {
+    let (token, name) = match first {
         Ok(Some(Ok(Message::Text(t)))) => match serde_json::from_str::<ClientMsg>(&t) {
-            Ok(ClientMsg::Hello { token }) => token,
+            Ok(ClientMsg::Hello { token, name }) => (token, name),
             _ => return,
         },
         _ => return,
     };
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<ServerMsg>();
-    let (id, conn) = s.hub.lock().unwrap().hello(identity, token.as_deref(), tx);
+    let (id, conn) = s.hub.lock().unwrap().hello(token.as_deref(), &name, tx);
     let writer = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             let Ok(text) = serde_json::to_string(&msg) else { continue };

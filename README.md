@@ -9,7 +9,7 @@ card images and names belong to Riot Games.
 ## Features
 
 - 1v1 (Bo1/Bo3), 2v2 and 3–4 player free-for-all
-- Private rooms, public room list, matchmaking, spectators and chat
+- Private rooms, public room list, matchmaking, spectators and chat. No accounts: players type a name when they join a lobby
 - Deck builder, Piltover Archive / RiftAtlas deck code import and export, sealed pools
 - Riot's preconstructed decks as starters
 - Solo play and goldfish, offline as an installable app
@@ -21,7 +21,7 @@ card images and names belong to Riot Games.
 docker run -p 8080:8080 -v rift-data:/data ghcr.io/joeyshi12/rift-showdown:latest
 ```
 
-The image serves on port 8080 and stores accounts and the card image cache in `/data`. It runs as
+The image serves on port 8080 and keeps its card image cache in `/data`. It runs as
 user 65532, so a bind-mounted `/data` must be writable by that user (or set `--user`).
 See [`deploy/`](deploy/) for a Compose example.
 
@@ -32,14 +32,9 @@ Tags: `X.Y.Z`, `X.Y` and `latest` for releases, `edge` for `main`, plus 12-chara
 | Variable | Default | |
 | --- | --- | --- |
 | `RIFT_BIND` | `127.0.0.1:8080` (`0.0.0.0:8080` in the image) | Listen address |
-| `RIFT_PUBLIC_URL` | unset | Public base URL; needed for OAuth and reset emails, enables secure cookies when https |
 | `RIFT_DATA` | `data` | Folder with `cards.json` |
 | `RIFT_DIST` | `dist` | Built client |
-| `RIFT_ACCOUNTS_DB` | `$RIFT_DATA/accounts.db` | SQLite account database |
 | `RIFT_IMG_CACHE` | `$RIFT_DATA/imgcache` | Card image cache |
-| `RIFT_SECURE_COOKIES` | from `RIFT_PUBLIC_URL` | Force `Secure` cookies on or off |
-| `RIFT_SMTP_URL`, `RIFT_MAIL_FROM` | unset | Password reset email, e.g. `smtps://user:pass@host`. Unset: links go to the log |
-| `RIFT_{GOOGLE,DISCORD,TWITCH}_CLIENT_ID` / `_SECRET` | unset | OAuth sign-in. Redirect URI: `<RIFT_PUBLIC_URL>/auth/<provider>/callback` |
 
 ## Build from source
 

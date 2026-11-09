@@ -130,7 +130,7 @@ fn nav(app: &App) -> String {
 /// Shown only while a connection that worked before is down. Nothing while
 /// connected, during the first connect, or after another tab took over.
 pub fn render_status(app: &App) {
-    let lost = !app.connected && app.my_id != 0 && !app.auth.replaced;
+    let lost = !app.connected && app.my_id != 0 && !app.names.replaced;
     set_html("net-lost", if lost { "<div class=\"net-lost\" role=\"status\">Connection lost. Reconnecting…</div>" } else { "" });
 }
 
@@ -152,21 +152,20 @@ fn deck_options(app: &App, selected: Option<&str>, include_sealed: bool) -> Stri
     s
 }
 
-fn top_bar(app: &App, title: &str) -> String {
+fn top_bar(title: &str) -> String {
     format!(
-        "<header class=\"topbar\"><div class=\"logo\" data-act=\"tab\" data-arg=\"Duel\">Rift Showdown</div><div class=\"tb-title\">{}</div>{}</header>",
-        esc(title),
-        crate::account::profile_html(app)
+        "<header class=\"topbar\"><div class=\"logo\" data-act=\"tab\" data-arg=\"Duel\">Rift Showdown</div><div class=\"tb-title\">{}</div></header>",
+        esc(title)
     )
 }
 
 pub fn render(app: &mut App, force: bool) {
     let html = match app.screen {
-        Screen::Home(Tab::Duel) => format!("{}<main class=\"home play\">{}</main>{}", top_bar(app, "Duel"), duel_tab(app), nav(app)),
-        Screen::Home(Tab::Solo) => format!("{}<main class=\"home\">{}</main>{}", top_bar(app, "Solo"), solo_tab(app), nav(app)),
-        Screen::Home(Tab::Sealed) => format!("{}<main class=\"home\">{}</main>{}", top_bar(app, "Sealed"), sealed_tab(app), nav(app)),
-        Screen::Home(Tab::Decks) => format!("{}<main class=\"home\">{}</main>{}", top_bar(app, "Decks"), decks_tab(app), nav(app)),
-        Screen::Home(Tab::Rooms) => format!("{}<main class=\"home\">{}</main>{}", top_bar(app, "Rooms"), rooms_tab(app), nav(app)),
+        Screen::Home(Tab::Duel) => format!("{}<main class=\"home play\">{}</main>{}", top_bar("Duel"), duel_tab(app), nav(app)),
+        Screen::Home(Tab::Solo) => format!("{}<main class=\"home\">{}</main>{}", top_bar("Solo"), solo_tab(app), nav(app)),
+        Screen::Home(Tab::Sealed) => format!("{}<main class=\"home\">{}</main>{}", top_bar("Sealed"), sealed_tab(app), nav(app)),
+        Screen::Home(Tab::Decks) => format!("{}<main class=\"home\">{}</main>{}", top_bar("Decks"), decks_tab(app), nav(app)),
+        Screen::Home(Tab::Rooms) => format!("{}<main class=\"home\">{}</main>{}", top_bar("Rooms"), rooms_tab(app), nav(app)),
         Screen::Editor => {
             if force || by_id("ed-results").is_none() {
                 dom::force_html("screen", &editor_shell(app));
@@ -177,7 +176,7 @@ pub fn render(app: &mut App, force: bool) {
         }
         Screen::Lobby => {
             if force || by_id("lobby-main").is_none() {
-                dom::force_html("screen", &format!("{}{}", top_bar(app, "Room"), lobby_shell()));
+                dom::force_html("screen", &format!("{}{}", top_bar("Room"), lobby_shell()));
                 app.render_chat_inline();
             }
             set_html("lobby-main", &lobby_main(app));
@@ -501,7 +500,7 @@ fn editor_shell(app: &App) -> String {
  <div class="ed-head"><input id="ed-name" value="{name}" placeholder="Deck name" data-input="ed-name"><div class="row"><button class="btn primary" data-act="ed-save">Save</button><button class="btn" data-act="ed-code">Copy code</button><button class="btn" data-act="ed-text">Copy list</button><button class="btn ghost" data-act="ed-back">Back</button></div></div>
  <div id="ed-deck" class="ed-deck"></div>
 </section></div>"#,
-        top = top_bar(app, if e.pool.is_some() { "Sealed deck" } else { "Edit deck" }),
+        top = top_bar(if e.pool.is_some() { "Sealed deck" } else { "Edit deck" }),
         q = esc(&e.query),
         t = sel("ed-type", &types, &e.ftype),
         d = sel("ed-dom", &doms, &e.fdomain),
@@ -842,7 +841,7 @@ fn find_deck_choice(app: &App, select_id: &str) -> Option<SavedDeck> {
 
 /// Returns true when the action was handled here.
 pub fn handle(app: &mut App, act: &str, arg: &str, shift: bool) -> bool {
-    if crate::account::handle(app, act, arg) {
+    if crate::name::handle(app, act) {
         return true;
     }
     let db = app.db.clone();
@@ -881,7 +880,6 @@ pub fn handle(app: &mut App, act: &str, arg: &str, shift: bool) -> bool {
             app.render();
         }
         // ---- duel
-        "create-room" | "join-room" | "join-code" | "queue" if !crate::account::require(app, "Sign in to play online. You can still watch rooms as a guest.") => {}
         "create-room" => {
             let mode = Mode::from_key(&input_value("cr-mode"));
             let settings = RoomSettings {
@@ -897,18 +895,18 @@ pub fn handle(app: &mut App, act: &str, arg: &str, shift: bool) -> bool {
                 allow_spectators: dom::checked("cr-spec"),
                 ..Default::default()
             };
-            net::send(&ClientMsg::CreateRoom { settings });
+            crate::name::ask(app, ClientMsg::CreateRoom { settings });
         }
         "join-room" | "spectate-room" => {
             let code = input_value("join-code").trim().to_uppercase();
             if code.len() != 6 {
                 app.toast("Room codes are 6 characters.", true);
             } else {
-                net::send(&ClientMsg::JoinRoom { code, spectate: act == "spectate-room" });
+                crate::name::ask(app, ClientMsg::JoinRoom { code, spectate: act == "spectate-room" });
             }
         }
-        "join-code" => net::send(&ClientMsg::JoinRoom { code: arg.into(), spectate: false }),
-        "spec-code" => net::send(&ClientMsg::JoinRoom { code: arg.into(), spectate: true }),
+        "join-code" => crate::name::ask(app, ClientMsg::JoinRoom { code: arg.into(), spectate: false }),
+        "spec-code" => crate::name::ask(app, ClientMsg::JoinRoom { code: arg.into(), spectate: true }),
         "rooms-refresh" => net::send(&ClientMsg::ListRooms),
         "queue" => {
             let mode = input_value("q-mode");
@@ -923,7 +921,7 @@ pub fn handle(app: &mut App, act: &str, arg: &str, shift: bool) -> bool {
                 app.toast(&format!("Paste a valid deck before searching for a match. {}", errs[0]), true);
                 return true;
             }
-            net::send(&ClientMsg::Queue { mode, deck: d.deck, sealed: None });
+            crate::name::ask(app, ClientMsg::Queue { mode, deck: d.deck, sealed: None });
         }
         "cancel-queue" => net::send(&ClientMsg::CancelQueue),
         "home-deck" => {

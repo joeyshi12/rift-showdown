@@ -12,43 +12,34 @@ const errors = [];
 const pages = [];
 let passed = 0;
 
-const PASSWORD = 'e2e password long enough';
+const names = new Map();
 function watch(name, page) {
   pages.push([name, page]);
   page.on('pageerror', e => errors.push(`${name}: ${e.message}`));
-  // 4xx answers from /api are expected in the validation steps.
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(`${name} console: ${m.text()}`); });
 }
-// A fresh browser profile (own cookies), not signed in.
+// A fresh browser profile. `name` is what the player types when a lobby asks.
 async function guest(name) {
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
   const page = await ctx.newPage();
   watch(name, page);
+  names.set(page, name);
   await page.goto(BASE);
   await page.waitForFunction(() => window.__state && window.__state().connected, null, { timeout: 20000 });
   return page;
 }
-// Sign up through the dialog (or sign in if a previous run created the account).
-async function signUp(page, name) {
-  await page.click('.profile [data-act=auth-open][data-arg=up]');
-  await page.fill('#su-name', name);
-  await page.fill('#su-email', `${name.toLowerCase()}@e2e.test`);
-  await page.fill('#su-pw', PASSWORD);
-  await page.click('#au-go');
-  await page.waitForFunction(() => window.__state().signed_in || document.querySelector('#au-err')?.textContent, null, { timeout: 15000 });
-  if (!(await st(page)).signed_in) {
-    await page.click('[data-act=auth-switch][data-arg=in]');
-    await page.fill('#si-email', `${name.toLowerCase()}@e2e.test`);
-    await page.fill('#si-pw', PASSWORD);
-    await page.click('#au-go');
-  }
-  await page.waitForFunction(n => window.__state().signed_in && window.__state().name === n && window.__state().connected, name, { timeout: 15000 });
+const newPlayer = guest;
+// Answer the name prompt that creating, joining, watching or searching opens.
+async function giveName(page) {
+  await page.waitForSelector('#nm-name');
+  await page.fill('#nm-name', names.get(page));
+  await page.click('#nm-go');
+  await page.waitForFunction(n => window.__state().name === n && !window.__state().name_prompt, names.get(page), { timeout: 15000 });
 }
-async function newPlayer(name) {
-  const page = await guest(name);
-  await signUp(page, name);
-  return page;
+async function lobby(page, selector) {
+  await page.click(selector);
+  await giveName(page);
 }
 const st = p => p.evaluate(() => window.__state());
 // Waits for the app to boot first: after a navigation, window.__state appears once the wasm is loaded.
@@ -67,53 +58,23 @@ async function step(name, fn) {
 const alice = await guest('Alice');
 let code;
 
-await step('guests see sign in / sign up; online play asks for an account', async () => {
-  assert.equal((await st(alice)).signed_in, false);
-  assert.ok(await alice.isVisible('.profile [data-act=auth-open][data-arg=in]'));
+await step('creating a room asks for a name; Escape cancels, an empty name is refused', async () => {
+  assert.equal(await alice.$$eval('.topbar button', b => b.length), 0, 'no sign-in buttons');
   await alice.click('[data-act=create-room]');
-  await until(alice, () => window.__state().auth_view === 'SignIn');
-  assert.match(await alice.textContent('.au-reason'), /Sign in to play online/);
-  await shot(alice, '00-sign-in');
-  // Escape closes the dialog; no room was created.
+  await until(alice, () => window.__state().name_prompt);
+  assert.equal(await alice.inputValue('#nm-name'), '', 'first visit starts empty');
+  await shot(alice, '00-name');
   await alice.keyboard.press('Escape');
-  await until(alice, () => window.__state().auth_view === null);
+  await until(alice, () => !window.__state().name_prompt);
   assert.equal((await st(alice)).room, null);
-  // Sign-up validation comes back from the server.
-  await alice.click('.profile [data-act=auth-open][data-arg=up]');
-  await alice.fill('#su-name', 'Alice');
-  await alice.fill('#su-email', 'not-an-email');
-  await alice.fill('#su-pw', PASSWORD);
-  await alice.click('#au-go');
-  await until(alice, () => /valid email/.test(document.querySelector('#au-err').textContent));
-  assert.equal(await alice.inputValue('#su-name'), 'Alice', 'typed values survive the error');
-  await alice.fill('#su-pw', 'short');
-  await alice.click('#au-go');
-  await until(alice, () => /at least 12/.test(document.querySelector('#au-err').textContent));
-  await shot(alice, '00-sign-up');
+  await alice.click('[data-act=create-room]');
+  await alice.fill('#nm-name', '   ');
+  await alice.click('#nm-go');
+  await until(alice, () => /Type a name/.test(document.querySelector('#nm-err').textContent));
   await alice.click('.au-x');
-  await signUp(alice, 'Alice');
-  assert.ok(await alice.isVisible('#acct-btn'));
+  assert.equal((await st(alice)).room, null);
 });
 const bob = await newPlayer('Bob');
-
-await step('two accounts keep separate names; renaming is per account', async () => {
-  await alice.click('#acct-btn');
-  await alice.click('[data-act=acct-open]');
-  await alice.fill('#acct-name', 'Bob');
-  await alice.click('#au-go');
-  await until(alice, () => /taken/.test(document.querySelector('#au-err').textContent));
-  await alice.fill('#acct-name', 'Alicia');
-  await alice.click('#au-go');
-  await until(alice, () => window.__state().name === 'Alicia');
-  await shot(alice, '00-account');
-  assert.equal((await st(bob)).name, 'Bob');
-  await alice.fill('#acct-name', 'Alice');
-  await alice.click('#au-go');
-  await until(alice, () => window.__state().name === 'Alice');
-  await alice.click('.au-x');
-  assert.equal(await alice.textContent('.acct-name'), 'Alice');
-  assert.equal(await bob.textContent('.acct-name'), 'Bob');
-});
 
 await step('home screen renders with nav and panels', async () => {
   assert.equal((await st(alice)).screen, 'Home(Duel)');
@@ -194,14 +155,16 @@ await step('create room, join by code, chat', async () => {
   await alice.click('[data-arg=Duel]');
   await alice.selectOption('#cr-format', 'Bo3');
   await alice.check('#cr-public');
-  await alice.click('[data-act=create-room]');
+  await lobby(alice, '[data-act=create-room]');
   await until(alice, () => window.__state().screen === 'Lobby' && window.__state().room);
   code = (await st(alice)).room;
   assert.match(code, /^[A-Z0-9]{6}$/);
   await bob.fill('#join-code', code.toLowerCase());
-  await bob.click('[data-act=join-room]');
+  await lobby(bob, '[data-act=join-room]');
+  assert.equal(await alice.evaluate(() => localStorage.getItem('rift.name')), 'Alice', 'name remembered');
   await until(bob, () => window.__state().screen === 'Lobby' && window.__state().players === 2);
   await until(alice, () => window.__state().players === 2);
+  await until(alice, () => [...document.querySelectorAll('.seat')].map(e => e.textContent).join(' ').includes('Bob'));
   await bob.fill('#chat-input', 'glhf!');
   await bob.press('#chat-input', 'Enter');
   await until(alice, () => [...document.querySelectorAll('.cl')].some(e => e.textContent.includes('glhf!')));
@@ -233,6 +196,7 @@ await step('both players load decks, ready up, match starts', async () => {
 const spec = await guest('Sam');
 await step('spectator joins live match by link', async () => {
   await spec.goto(`${BASE}/?room=${code}&spectate=1`);
+  await giveName(spec);
   await until(spec, () => window.__state().screen === 'Game' && window.__state().game.spectator);
 });
 
@@ -381,9 +345,11 @@ await step('matchmaking pairs two searching players', async () => {
     await until(p, () => document.querySelector('.pick.on')?.title.includes('Champion Deck'));
   }
   await alice.click('[data-act=queue]');
+  assert.equal(await alice.inputValue('#nm-name'), 'Alice', 'remembered name is filled in');
+  await alice.click('#nm-go');
   await alice.waitForSelector('.queue-pop');
   await shot(alice, '17-queue');
-  await bob.click('[data-act=queue]');
+  await lobby(bob, '[data-act=queue]');
   await until(alice, () => window.__state().screen === 'Game');
   await until(bob, () => window.__state().screen === 'Game');
   const a = await st(alice), b = await st(bob);
@@ -462,73 +428,24 @@ await step('solo play controls both seats', async () => {
   await p.close();
 });
 
-await step('opening the same account in a second tab retires the first', async () => {
+await step('a second tab is a separate player; renaming updates the room', async () => {
   const tab2 = await alice.context().newPage();
   watch('Alice tab 2', tab2);
+  names.set(tab2, 'Alice 2');
   await tab2.goto(BASE);
-  await tab2.waitForFunction(() => window.__state && window.__state().connected && window.__state().signed_in, null, { timeout: 20000 });
-  await until(alice, () => !!document.querySelector('[data-act=auth-resume]'));
-  await alice.waitForTimeout(1500);
-  assert.equal((await st(alice)).connected, false, 'first tab does not reconnect by itself');
-  assert.equal((await st(tab2)).connected, true);
-  await shot(alice, '20-other-tab');
+  await tab2.waitForFunction(() => window.__state && window.__state().connected, null, { timeout: 20000 });
+  await alice.waitForTimeout(500);
+  assert.equal((await st(alice)).connected, true, 'first tab keeps running');
+  await lobby(tab2, '[data-act=create-room]');
+  await until(tab2, () => !!window.__state().room);
+  const c2 = (await st(tab2)).room;
+  await alice.fill('#join-code', c2);
+  await alice.click('[data-act=join-room]');
+  await alice.fill('#nm-name', 'Alicia');
+  await alice.click('#nm-go');
+  await until(tab2, () => [...document.querySelectorAll('.seat')].map(e => e.textContent).join(' ').includes('Alicia'));
   await tab2.close();
-  await alice.click('[data-act=auth-resume]');
-  await until(alice, () => window.__state().connected && !document.querySelector('[data-act=auth-resume]'));
-});
-
-await step('sign out returns to guest', async () => {
-  await alice.click('#acct-btn');
-  await alice.click('[data-act=acct-sign-out]');
-  await until(alice, () => !window.__state().signed_in && window.__state().connected);
-  assert.ok(await alice.isVisible('.profile [data-act=auth-open][data-arg=up]'));
-});
-
-await step('forgot password: email link, new password, sign in', async () => {
-  // dev-server.sh has no SMTP, so the server writes the email to its log.
-  const LOG = process.env.SERVER_LOG || '../target/dev-server/server.log';
-  const linkFor = () => [...fs.readFileSync(LOG, 'utf8').matchAll(/\/\?reset=([0-9a-f]{64})/g)].map(m => m[1]).at(-1);
-  const before = linkFor();
-  await alice.click('.profile [data-act=auth-open][data-arg=in]');
-  await alice.fill('#si-email', 'alice@e2e.test');
-  await alice.click('[data-act=auth-forgot]');
-  await until(alice, () => window.__state().auth_view === 'Forgot');
-  assert.equal(await alice.inputValue('#fp-email'), 'alice@e2e.test', 'email carried over');
-  await shot(alice, '21-forgot');
-  await alice.click('#au-go');
-  await alice.waitForSelector('text=Check your email');
-  let token;
-  for (let i = 0; i < 50 && (!token || token === before); i++) { await alice.waitForTimeout(100); token = linkFor(); }
-  assert.ok(token && token !== before, 'reset link written to the server log');
-  await alice.goto(`${BASE}/?reset=${token}`);
-  await until(alice, () => window.__state().auth_view === 'Reset');
-  assert.ok(!(await alice.evaluate(() => location.search)).includes('reset'), 'token removed from the address bar');
-  await alice.fill('#rp-pw', 'short');
-  await alice.click('#au-go');
-  await until(alice, () => /at least 12/.test(document.querySelector('#au-err').textContent));
-  await shot(alice, '22-reset');
-  await alice.fill('#rp-pw', 'a new e2e password');
-  await alice.click('#au-go');
-  await until(alice, () => window.__state().signed_in && window.__state().name === 'Alice' && window.__state().connected);
-  // Used links stop working.
-  await alice.click('#acct-btn');
-  await alice.click('[data-act=acct-sign-out]');
-  await until(alice, () => !window.__state().signed_in);
-  await alice.goto(`${BASE}/?reset=${token}`);
-  await until(alice, () => window.__state().auth_view === 'Reset');
-  await alice.fill('#rp-pw', 'another long password');
-  await alice.click('#au-go');
-  await until(alice, () => /invalid or has expired/.test(document.querySelector('#au-err').textContent));
-  // The old password no longer works; the new one does.
-  await alice.click('[data-act=auth-forgot]');
-  await alice.click('[data-act=auth-switch][data-arg=in]');
-  await alice.fill('#si-email', 'alice@e2e.test');
-  await alice.fill('#si-pw', PASSWORD);
-  await alice.click('#au-go');
-  await until(alice, () => /Wrong email or password/.test(document.querySelector('#au-err').textContent));
-  await alice.fill('#si-pw', 'a new e2e password');
-  await alice.click('#au-go');
-  await until(alice, () => window.__state().signed_in);
+  await alice.click('[data-act=leave-room]').catch(() => {});
 });
 
 await step('installable PWA: manifest, icons, service worker, offline shell', async () => {
@@ -622,12 +539,12 @@ const allUntil = (fn, arg) => Promise.all(four.map(p => until(p, fn, arg, 20000)
 await step('2v2 room: four players, two teams, different starter decks', async () => {
   await tess.click('[data-arg=Duel]');
   await tess.selectOption('#cr-mode', 'teams');
-  await tess.click('[data-act=create-room]');
+  await lobby(tess, '[data-act=create-room]');
   await until(tess, () => window.__state().screen === 'Lobby' && window.__state().room);
   code4 = (await st(tess)).room;
   for (const p of four.slice(1)) {
     await p.fill('#join-code', code4);
-    await p.click('[data-act=join-room]');
+    await lobby(p, '[data-act=join-room]');
   }
   await allUntil(() => window.__state().players === 4);
   assert.equal(await tess.$$eval('.seats.teams .team', e => e.length), 2);

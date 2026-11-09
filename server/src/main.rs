@@ -7,18 +7,8 @@ async fn main() {
     let cfg = Config {
         data_dir: PathBuf::from(std::env::var("RIFT_DATA").unwrap_or_else(|_| "data".into())),
         dist_dir: PathBuf::from(std::env::var("RIFT_DIST").unwrap_or_else(|_| "dist".into())),
-        accounts_db: std::env::var("RIFT_ACCOUNTS_DB").ok().map(PathBuf::from),
         img_cache: std::env::var("RIFT_IMG_CACHE").ok().filter(|v| !v.trim().is_empty()).map(PathBuf::from),
-        auth: rift_server::auth::AuthConfig::from_env(),
-        mailer: rift_server::mail::Mailer::from_env().unwrap_or_else(|e| {
-            eprintln!("failed to start: {e}");
-            std::process::exit(1);
-        }),
     };
-    if cfg.mailer.delivers() && cfg.auth.public_url.is_none() {
-        eprintln!("failed to start: RIFT_SMTP_URL needs RIFT_PUBLIC_URL, which is used to build the links in emails");
-        std::process::exit(1);
-    }
     let bind = std::env::var("RIFT_BIND").unwrap_or_else(|_| "127.0.0.1:8080".into());
     let state = load_state(&cfg).unwrap_or_else(|e| {
         eprintln!("failed to start: {e}");
@@ -31,8 +21,8 @@ async fn main() {
         std::process::exit(1);
     });
     tracing::info!("Rift Showdown listening on http://{bind} (dist: {})", cfg.dist_dir.display());
-    // Stop at once on Ctrl+C or SIGTERM (docker stop). Matches only live in memory,
-    // and SQLite commits are already durable, so there is nothing to drain.
+    // Stop at once on Ctrl+C or SIGTERM (docker stop). Rooms and matches only live
+    // in memory, so there is nothing to drain.
     tokio::select! {
         r = axum::serve(listener, app) => r.unwrap(),
         _ = shutdown_signal() => tracing::info!("shutting down"),

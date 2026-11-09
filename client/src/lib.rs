@@ -4,7 +4,7 @@ pub mod app;
 pub mod board;
 pub mod dom;
 pub mod gfx;
-pub mod account;
+pub mod name;
 pub mod icons;
 pub mod math;
 pub mod net;
@@ -52,12 +52,6 @@ fn boot(db: CardDb) {
             return;
         }
         let Ok(Some(hit)) = el.closest("[data-act]") else {
-            with_app(|a| {
-                if a.auth.menu_open && el.closest("#acct-pop").ok().flatten().is_none() {
-                    a.auth.menu_open = false;
-                    a.render();
-                }
-            });
             // clicking outside an open context menu closes it
             if el.closest("#ctx").ok().flatten().is_none() && el.id() != "table" && el.closest("[data-hand]").ok().flatten().is_none() {
                 with_app(|a| {
@@ -121,7 +115,7 @@ fn boot(db: CardDb) {
         dom::listen::<MouseEvent>(&t, "contextmenu", |e| e.prevent_default());
     }
     with_app(|a| a.render());
-    account::boot();
+    net::connect(app::hello);
     // Animation loop.
     let f: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -176,8 +170,7 @@ pub fn debug_state() -> String {
             "screen": format!("{:?}", a.screen),
             "connected": a.connected,
             "name": a.name,
-            "signed_in": a.auth.signed_in(),
-            "auth_view": a.auth.view.map(|v| format!("{v:?}")),
+            "name_prompt": a.names.pending.is_some(),
             "room": a.room.as_ref().map(|r| r.code.clone()),
             "in_game": a.room.as_ref().map(|r| r.in_game),
             "players": a.room.as_ref().map(|r| r.players.len()),

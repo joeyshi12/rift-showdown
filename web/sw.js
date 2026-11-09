@@ -56,8 +56,8 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   const p = url.pathname;
-  // Live and account traffic never comes from a cache.
-  if (p === '/ws' || p.startsWith('/api/') || p.startsWith('/auth/') || p === '/healthz') return;
+  // Live traffic never comes from a cache.
+  if (p === '/ws' || p === '/healthz') return;
   if (p === '/img') return e.respondWith(cacheFirst(req));
   // Every page (including /?room=CODE invite links) is the same app shell.
   if (req.mode === 'navigate') return e.respondWith(networkFirst(req, '/'));

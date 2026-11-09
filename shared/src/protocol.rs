@@ -45,9 +45,12 @@ pub struct QueueMode {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ClientMsg {
-    /// First message on every socket. Signed-in identity comes from the session
-    /// cookie; `token` only resumes a guest (spectator) connection.
-    Hello { token: Option<String> },
+    /// First message on every socket. `token` resumes an earlier connection (so a
+    /// dropped socket keeps its seat); `name` is the player's chosen display name.
+    Hello { token: Option<String>, name: String },
+    /// Change the display name. Rooms show it at once; a match in progress keeps
+    /// the names it started with.
+    SetName { name: String },
     CreateRoom { settings: RoomSettings },
     JoinRoom { code: String, spectate: bool },
     LeaveRoom,
@@ -131,13 +134,9 @@ pub struct QueueStatus {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ServerMsg {
-    Welcome { id: u64, token: String, name: String, signed_in: bool },
-    /// The action needs an account.
-    SignInRequired { message: String },
-    /// The same account connected from another tab or device; this socket is retired.
+    Welcome { id: u64, token: String, name: String },
+    /// The same session reconnected on another socket; this one is retired.
     Replaced,
-    /// The account's sessions ended (password reset); reconnect as a guest.
-    SignedOut,
     Error { message: String },
     Info { message: String },
     Room { room: RoomView },
@@ -180,7 +179,8 @@ mod tests {
     #[test]
     fn json_roundtrip() {
         let msgs = vec![
-            ClientMsg::Hello { token: None },
+            ClientMsg::Hello { token: None, name: "Ana".into() },
+            ClientMsg::SetName { name: "Bo".into() },
             ClientMsg::Act { action: MatchAction::Game(Action::Move { card: 3, to: Zone::Bf(1, 0), pos: Default::default() }) },
             ClientMsg::Queue { mode: QueueMode { format: Format::Bo3, rules: DeckRules::Standard }, deck: Deck::default(), sealed: None },
         ];

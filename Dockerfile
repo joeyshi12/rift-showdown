@@ -3,7 +3,7 @@
 #   docker build -t rift-showdown .
 #   docker run -p 8080:8080 -v rift-data:/data rift-showdown
 #
-# Persistent state (accounts database, card image cache) lives in /data.
+# The card image cache lives in /data. Rooms and matches are in memory only.
 
 ARG RUST_VERSION=1.99.1
 ARG WASM_BINDGEN_VERSION=0.2.130
@@ -33,7 +33,6 @@ COPY --from=build /src/data/cards.json /app/data/cards.json
 ENV RIFT_BIND=0.0.0.0:8080 \
     RIFT_DATA=/app/data \
     RIFT_DIST=/app/dist \
-    RIFT_ACCOUNTS_DB=/data/accounts.db \
     RIFT_IMG_CACHE=/data/imgcache
 VOLUME ["/data"]
 EXPOSE 8080

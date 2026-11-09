@@ -15,7 +15,7 @@ thread_local! {
     static OUTBOX: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static RETRY: RefCell<i32> = const { RefCell::new(0) };
     static HELLO: RefCell<Option<Hello>> = const { RefCell::new(None) };
-    /// Set when another tab took over this account; stops automatic reconnects.
+    /// Set when another tab took over this session; stops automatic reconnects.
     static STOPPED: RefCell<bool> = const { RefCell::new(false) };
 }
 

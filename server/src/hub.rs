@@ -22,16 +22,8 @@ const CODE_ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 pub type Tx = UnboundedSender<ServerMsg>;
 
-/// A signed-in account, as resolved from the session cookie.
-#[derive(Clone, Debug)]
-pub struct Identity {
-    pub user_id: i64,
-    pub name: String,
-}
-
 struct Client {
     name: String,
-    user: Option<i64>,
     token: String,
     tx: Option<Tx>,
     conn: u64,
@@ -121,7 +113,6 @@ pub struct Hub {
     db: Arc<CardDb>,
     clients: HashMap<u64, Client>,
     tokens: HashMap<String, u64>,
-    users: HashMap<i64, u64>,
     rooms: HashMap<String, Room>,
     queue: Vec<QueueEntry>,
     next_id: u64,
@@ -146,7 +137,7 @@ fn random_token() -> String {
 
 impl Hub {
     pub fn new(db: Arc<CardDb>) -> Hub {
-        Hub { db, clients: HashMap::new(), tokens: HashMap::new(), users: HashMap::new(), rooms: HashMap::new(), queue: vec![], next_id: 1, next_conn: 1 }
+        Hub { db, clients: HashMap::new(), tokens: HashMap::new(), rooms: HashMap::new(), queue: vec![], next_id: 1, next_conn: 1 }
     }
 
     pub fn room_count(&self) -> usize {
@@ -168,17 +159,14 @@ impl Hub {
         self.clients.get(&id).map(|c| c.name.clone()).unwrap_or_else(|| "Player".into())
     }
 
-    /// Register a connection. A signed-in user always maps to the same hub
-    /// client (so a refresh or new tab keeps the seat); guests can resume with
-    /// their token. Returns (client id, connection id).
-    pub fn hello(&mut self, identity: Option<Identity>, token: Option<&str>, tx: Tx) -> (u64, u64) {
+    /// Register a connection. A known token resumes that client (same id, same
+    /// seat) and retires its old socket. `name` is the player's chosen display
+    /// name. Returns (client id, connection id).
+    pub fn hello(&mut self, token: Option<&str>, name: &str, tx: Tx) -> (u64, u64) {
         let conn = self.next_conn;
         self.next_conn += 1;
-        let existing = match &identity {
-            Some(u) => self.users.get(&u.user_id).copied(),
-            None => token.and_then(|t| self.tokens.get(t).copied()).filter(|id| self.clients.get(id).map(|c| c.user.is_none()).unwrap_or(false)),
-        };
-        let id = match existing {
+        let name = clean_name(name);
+        let id = match token.and_then(|t| self.tokens.get(t).copied()) {
             Some(id) => {
                 let c = self.clients.get_mut(&id).unwrap();
                 if let Some(old) = c.tx.take() {
@@ -186,9 +174,7 @@ impl Hub {
                 }
                 c.tx = Some(tx);
                 c.conn = conn;
-                if let Some(u) = &identity {
-                    c.name = u.name.clone();
-                }
+                c.name = name;
                 c.last_seen = Instant::now();
                 id
             }
@@ -197,19 +183,12 @@ impl Hub {
                 self.next_id += 1;
                 let token = random_token();
                 self.tokens.insert(token.clone(), id);
-                let (name, user) = match &identity {
-                    Some(u) => (u.name.clone(), Some(u.user_id)),
-                    None => ("Guest".to_string(), None),
-                };
-                if let Some(uid) = user {
-                    self.users.insert(uid, id);
-                }
-                self.clients.insert(id, Client { name, user, token, tx: Some(tx), conn, room: None, last_seen: Instant::now() });
+                self.clients.insert(id, Client { name, token, tx: Some(tx), conn, room: None, last_seen: Instant::now() });
                 id
             }
         };
         let c = &self.clients[&id];
-        self.send(id, ServerMsg::Welcome { id, token: c.token.clone(), name: c.name.clone(), signed_in: c.user.is_some() });
+        self.send(id, ServerMsg::Welcome { id, token: c.token.clone(), name: c.name.clone() });
         if let Some(code) = self.clients[&id].room.clone() {
             if let Some(r) = self.rooms.get(&code) {
                 self.send(id, ServerMsg::ChatHistory { lines: r.chat.clone() });
@@ -241,9 +220,6 @@ impl Hub {
             self.leave_room(id, true);
             if let Some(c) = self.clients.remove(&id) {
                 self.tokens.remove(&c.token);
-                if let Some(u) = c.user {
-                    self.users.remove(&u);
-                }
             }
         }
     }
@@ -252,14 +228,9 @@ impl Hub {
         if let Some(c) = self.clients.get_mut(&id) {
             c.last_seen = Instant::now();
         }
-        let guest = self.clients.get(&id).map(|c| c.user.is_none()).unwrap_or(true);
-        let guest_ok = matches!(msg, ClientMsg::Hello { .. } | ClientMsg::Ping | ClientMsg::JoinRoom { spectate: true, .. } | ClientMsg::LeaveRoom | ClientMsg::ListRooms | ClientMsg::CancelQueue);
-        if guest && !guest_ok {
-            self.send(id, ServerMsg::SignInRequired { message: "Sign in to play online. Guests can only watch.".into() });
-            return;
-        }
         match msg {
             ClientMsg::Hello { .. } => {}
+            ClientMsg::SetName { name } => self.set_name(id, &name),
             ClientMsg::Ping => self.send(id, ServerMsg::Pong),
             ClientMsg::CreateRoom { settings } => {
                 self.create_room(id, sanitize(settings), false);
@@ -286,24 +257,16 @@ impl Hub {
         }
     }
 
-    /// The account's name changed (account settings). Rooms show it at once;
-    /// a match in progress keeps the names it started with.
-    pub fn rename_user(&mut self, user_id: i64, name: &str) {
-        let Some(&id) = self.users.get(&user_id) else { return };
-        if let Some(c) = self.clients.get_mut(&id) {
-            c.name = name.to_string();
-        }
-        self.send(id, ServerMsg::Welcome { id, token: self.clients[&id].token.clone(), name: name.to_string(), signed_in: true });
+    /// The player changed their name. Rooms show it at once; a match in
+    /// progress keeps the names it started with.
+    fn set_name(&mut self, id: u64, name: &str) {
+        let name = clean_name(name);
+        let Some(c) = self.clients.get_mut(&id) else { return };
+        c.name = name.clone();
+        let token = c.token.clone();
+        self.send(id, ServerMsg::Welcome { id, token, name });
         if let Some(code) = self.room_of(id) {
             self.broadcast_room(&code);
-        }
-    }
-
-    /// The account's sessions were revoked (password reset). Its open socket
-    /// reconnects without the session; the seat is kept for a later sign-in.
-    pub fn sign_out_user(&mut self, user_id: i64) {
-        if let Some(&id) = self.users.get(&user_id) {
-            self.send(id, ServerMsg::SignedOut);
         }
     }
 
@@ -787,8 +750,7 @@ mod tests {
 
     fn connect(h: &mut Hub, name: &str) -> C {
         let (tx, rx) = unbounded_channel();
-        let user_id = rift_shared::rng::seed_from_str(name) as i64 & 0xffff_ffff;
-        let (id, conn) = h.hello(Some(Identity { user_id, name: name.into() }), None, tx);
+        let (id, conn) = h.hello(None, name, tx);
         C { id, conn, rx }
     }
 
@@ -1057,72 +1019,40 @@ mod tests {
         assert!(c.drain().iter().any(|m| matches!(m, ServerMsg::Error { .. })));
     }
 
-    fn guest(h: &mut Hub, token: Option<&str>) -> C {
-        let (tx, rx) = unbounded_channel();
-        let (id, conn) = h.hello(None, token, tx);
-        C { id, conn, rx }
-    }
-
     #[test]
-    fn guests_can_only_watch() {
-        let db = db();
-        let mut h = Hub::new(db.clone());
-        let mut a = connect(&mut h, "Alice");
-        let tok = token_of(&mut a);
-        h.handle(a.id, ClientMsg::CreateRoom { settings: RoomSettings { public: true, ..Default::default() } });
-        let code = a.last_room().unwrap().code;
-        let mut g = guest(&mut h, None);
-        let w = g.drain();
-        assert!(w.iter().any(|m| matches!(m, ServerMsg::Welcome { signed_in: false, .. })));
-        for m in [
-            ClientMsg::CreateRoom { settings: RoomSettings::default() },
-            ClientMsg::JoinRoom { code: code.clone(), spectate: false },
-            ClientMsg::Queue { mode: QueueMode { format: Format::Bo1, rules: DeckRules::Standard }, deck: starter_deck(&db, "SFD-181").unwrap(), sealed: None },
-            ClientMsg::Chat { text: "hi".into() },
-        ] {
-            h.handle(g.id, m);
-            assert!(g.drain().iter().any(|m| matches!(m, ServerMsg::SignInRequired { .. })));
-        }
-        assert_eq!(h.queue_len(), 0);
-        h.handle(g.id, ClientMsg::JoinRoom { code: code.clone(), spectate: true });
-        let r = g.last_room().unwrap();
-        assert_eq!(r.you, Role::Spectator);
-        h.handle(g.id, ClientMsg::ToggleSpectator);
-        assert!(g.drain().iter().any(|m| matches!(m, ServerMsg::SignInRequired { .. })));
-        // A guest token cannot be used to take over a signed-in client.
-        let mut g2 = guest(&mut h, Some(&tok));
-        assert_ne!(g2.id, a.id);
-        assert!(g2.drain().iter().any(|m| matches!(m, ServerMsg::Welcome { signed_in: false, .. })));
-    }
-
-    #[test]
-    fn same_account_new_tab_replaces_old_socket() {
+    fn names_come_from_the_client() {
         let db = db();
         let mut h = Hub::new(db);
-        let mut a = connect(&mut h, "Alice");
-        let mut b = connect(&mut h, "Bob");
-        assert_ne!(a.id, b.id);
-        let a2 = connect(&mut h, "Alice");
-        assert_eq!(a2.id, a.id);
-        assert!(a.drain().iter().any(|m| matches!(m, ServerMsg::Replaced)));
-        assert!(!b.drain().iter().any(|m| matches!(m, ServerMsg::Replaced)));
-    }
-
-    #[test]
-    fn rename_updates_room() {
-        let db = db();
-        let mut h = Hub::new(db);
-        let mut a = connect(&mut h, "Alice");
+        let mut a = connect(&mut h, "  Alice\u{7}  ");
+        assert!(a.drain().iter().any(|m| matches!(m, ServerMsg::Welcome { name, .. } if name == "Alice")));
         h.handle(a.id, ClientMsg::CreateRoom { settings: RoomSettings::default() });
         let code = a.last_room().unwrap().code;
-        let mut b = connect(&mut h, "Bob");
+        let mut b = connect(&mut h, "");
         h.handle(b.id, ClientMsg::JoinRoom { code, spectate: false });
-        b.drain();
-        let uid = rift_shared::rng::seed_from_str("Alice") as i64 & 0xffff_ffff;
-        h.rename_user(uid, "Alicia");
-        let r = b.last_room().unwrap();
-        assert_eq!(r.players[0].name, "Alicia");
+        assert_eq!(b.last_room().unwrap().players[1].name, "Player");
+        h.handle(b.id, ClientMsg::SetName { name: "Bob".into() });
+        let r = a.last_room().unwrap();
+        assert_eq!(r.players[0].name, "Alice");
         assert_eq!(r.players[1].name, "Bob");
+    }
+
+    #[test]
+    fn same_token_replaces_old_socket() {
+        let db = db();
+        let mut h = Hub::new(db);
+        let mut a = connect(&mut h, "Alice");
+        let tok = token_of(&mut a);
+        let mut b = connect(&mut h, "Alice");
+        assert_ne!(a.id, b.id, "same name is a different player");
+        let (tx, _rx) = unbounded_channel();
+        let (id2, _) = h.hello(Some(&tok), "Alice", tx);
+        assert_eq!(id2, a.id);
+        assert!(a.drain().iter().any(|m| matches!(m, ServerMsg::Replaced)));
+        assert!(!b.drain().iter().any(|m| matches!(m, ServerMsg::Replaced)));
+        // An unknown token starts a new client.
+        let (tx, _rx) = unbounded_channel();
+        let (id3, _) = h.hello(Some("nope"), "Eve", tx);
+        assert!(id3 != a.id && id3 != b.id);
     }
 
     #[test]
@@ -1130,12 +1060,12 @@ mod tests {
         let db = db();
         let mut h = Hub::new(db);
         let mut a = connect(&mut h, "A");
+        let tok = token_of(&mut a);
         h.handle(a.id, ClientMsg::CreateRoom { settings: RoomSettings::default() });
         let code = a.last_room().unwrap().code;
         h.disconnect(a.id, a.conn);
         let (tx, rx) = unbounded_channel();
-        let uid = rift_shared::rng::seed_from_str("A") as i64 & 0xffff_ffff;
-        let (id2, _) = h.hello(Some(Identity { user_id: uid, name: "A".into() }), None, tx);
+        let (id2, _) = h.hello(Some(&tok), "A", tx);
         assert_eq!(id2, a.id);
         let mut a2 = C { id: id2, conn: 0, rx };
         let r = a2.last_room().unwrap();
