@@ -12,8 +12,8 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <title>Rift Showdown: play Riftbound on a 3D table</title>
 <meta name="description" content="Play Riftbound online in a 3D duel field: room codes, matchmaking, spectating, goldfish and sealed practice.">
-<link rel="stylesheet" href="fonts.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/fonts.css">
+<link rel="stylesheet" href="/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l12 14-12 14L4 16z' fill='%23dcb86a'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -40,7 +40,7 @@
   }
 </script>
 <script type="module">
-  import init, { debug_state, debug_zone_point } from './pkg/rift_client.js';
+  import init, { debug_state, debug_zone_point } from '/pkg/rift_client.js';
   init().then(() => { window.__state = () => JSON.parse(debug_state()); window.__zone = (z) => debug_zone_point(JSON.stringify(z)); });
 </script>
 </body>

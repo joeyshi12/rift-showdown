@@ -50,12 +50,14 @@ pub fn handle(app: &mut App, act: &str) -> bool {
                 net::send(&ClientMsg::SetName { name });
             }
             if let Some(m) = app.names.pending.take() {
+                app.joining = true;
                 net::send(&m);
             }
             render_dialog(app);
         }
         "name-close" => {
             app.names.pending = None;
+            crate::route::release(app);
             render_dialog(app);
         }
         "resume-here" => {

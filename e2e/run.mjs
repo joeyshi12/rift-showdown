@@ -170,6 +170,33 @@ await step('create room, join by code, chat', async () => {
   await until(alice, () => [...document.querySelectorAll('.cl')].some(e => e.textContent.includes('glhf!')));
 });
 
+await step('pages have their own URLs; reload and back keep your place', async () => {
+  assert.equal(new URL(alice.url()).pathname, `/room/${code}`);
+  await alice.reload();
+  await until(alice, c => window.__state().screen === 'Lobby' && window.__state().room === c && !window.__state().name_prompt, code);
+  assert.equal(new URL(alice.url()).pathname, `/room/${code}`, 'reload keeps the room page');
+  await until(bob, () => window.__state().players === 2);
+  await alice.click('.logo');
+  await until(alice, () => window.__state().screen === 'Home(Duel)');
+  assert.equal(new URL(alice.url()).pathname, '/');
+  await alice.click('[data-arg=Decks]');
+  await until(alice, () => location.pathname === '/decks');
+  await alice.reload();
+  await until(alice, () => window.__state().screen === 'Home(Decks)');
+  await alice.goBack();
+  await until(alice, () => window.__state().screen === 'Home(Duel)');
+  await alice.goBack();
+  await until(alice, () => window.__state().screen === 'Lobby');
+  assert.equal(new URL(alice.url()).pathname, `/room/${code}`);
+  await alice.goForward();
+  await until(alice, () => window.__state().screen === 'Home(Duel)');
+  await alice.goForward();
+  await until(alice, () => window.__state().screen === 'Home(Decks)');
+  // The Back to room button returns to the lobby from any page.
+  await alice.click('[data-act=to-room]');
+  await until(alice, () => window.__state().screen === 'Lobby' && location.pathname.startsWith('/room/'));
+});
+
 await step('public room browser lists the room', async () => {
   const carol = await guest('Carol');
   await carol.click('[data-arg=Rooms]');

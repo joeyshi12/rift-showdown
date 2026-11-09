@@ -179,11 +179,14 @@ pub fn render(app: &mut App, force: bool) {
         let rot = off * (14.0 / n).min(4.0);
         let lift = off.abs() * off.abs() * (6.0 / n).min(2.0);
         let sel = g.selected == Some(*id) || g.mull_sel.contains(id);
+        // Its menu is open: stay raised while the pointer travels to the menu.
+        let open = matches!(g.menu.as_ref().map(|m| &m.kind), Some(MenuKind::Card(c)) if c == id);
         let img = card_img(c, &db, 300).unwrap_or_default();
         hand += &format!(
-            "<div class=\"hc {sel} {shown}\" data-hand=\"{id}\" data-code=\"{code}\" style=\"--r:{rot:.2}deg;--y:{lift:.1}px;--n1:{n1}\">{inner}</div>",
+            "<div class=\"hc {sel} {shown}{open}\" data-hand=\"{id}\" data-code=\"{code}\" style=\"--r:{rot:.2}deg;--y:{lift:.1}px;--n1:{n1}\"><div class=\"hc-c\">{inner}</div></div>",
             n1 = (n - 1.0).max(1.0),
             sel = if sel { "sel" } else { "" },
+            open = if open { " open" } else { "" },
             shown = if c.shown || gs.seats[me as usize].hand_shown { "shown" } else { "" },
             code = esc(&c.code),
             inner = if img.is_empty() { "<div class=\"back\"></div>".to_string() } else { format!("<img src=\"{img}\" draggable=\"false\">") },
@@ -428,10 +431,28 @@ struct Item {
     act: String,
     arg: String,
     cls: &'static str,
+    /// Tooltip (also the accessible name when the label is terse, like "A").
+    tip: String,
+    /// Small figure on the right of the button (a card's cost).
+    badge: String,
 }
 
 fn it(label: &str, act: &str, arg: impl Into<String>) -> Item {
-    Item { label: label.into(), act: act.into(), arg: arg.into(), cls: "" }
+    Item { label: label.into(), act: act.into(), arg: arg.into(), cls: "", tip: String::new(), badge: String::new() }
+}
+
+/// An inline row label: it and the `bf` items after it share one line.
+fn row_label(label: &str) -> Item {
+    Item { cls: "inl", ..it(label, "", "") }
+}
+
+/// "Battlefield A: Name" for tooltips.
+fn bf_title(db: &CardDb, gs: &GameState, b: u8) -> String {
+    let letter = (b'A' + b) as char;
+    match gs.pile(Zone::BfCard(b)).first().and_then(|&id| gs.card(id)).and_then(|c| db.get(&c.code)) {
+        Some(d) => format!("Battlefield {letter}: {}", d.name),
+        None => format!("Battlefield {letter}"),
+    }
 }
 
 fn card_menu_items(db: &CardDb, g: &GameUi, id: CardId) -> (String, Vec<Item>) {
@@ -446,22 +467,28 @@ fn card_menu_items(db: &CardDb, g: &GameUi, id: CardId) -> (String, Vec<Item>) {
     let mv = |label: &str, z: Zone, pos: &str| it(label, "c-move", format!("{id}|{}|{pos}", zone_key(z)));
     match c.zone {
         Zone::Hand(_) if mine => {
-            v.push(Item { cls: "hi", ..it(if g.autopay { "Play (auto-pay)" } else { "Play" }, "c-play", id.to_string()) });
-            if g.autopay {
-                v.push(it("Play without paying", "c-play-free", id.to_string()));
-            }
+            // Play is the one big button; destinations are one tap each, no second step.
+            let cost = def.and_then(|d| d.energy).map(|e| e.to_string()).unwrap_or_default();
+            v.push(Item { cls: "hi", badge: cost, tip: if g.autopay { "Pays from your ready runes".into() } else { String::new() }, ..it(if g.autopay { "Play (auto-pay)" } else { "Play" }, "c-play", id.to_string()) });
+            let lane = |label: &str, act: &str, b: u8| Item { cls: "bf", tip: bf_title(db, gs, b), ..it(label, act, format!("{id}|{b}")) };
             if def.map(|d| d.is_unit()).unwrap_or(false) && nbf > 0 {
-                v.push(it("Play to…", "c-target", format!("{id}|play")));
+                v.push(row_label("Play at"));
+                v.extend((0..nbf).map(|b| lane(&((b'A' + b) as char).to_string(), "c-play-at", b)));
             }
             if nbf > 0 {
-                v.push(it("Hide at…", "c-target", format!("{id}|hide")));
+                v.push(row_label("Hide at"));
+                v.extend((0..nbf).map(|b| lane(&((b'A' + b) as char).to_string(), "c-hide-at", b)));
             }
-            v.push(it(if c.shown { "Stop revealing" } else { "Reveal" }, "c-reveal", id.to_string()));
-            v.push(mv("Discard to trash", Zone::Trash(o), "top"));
-            v.push(mv("Put on top of deck", Zone::Deck(o), "top"));
-            v.push(mv("Put on bottom of deck", Zone::Deck(o), "bottom"));
-            v.push(mv("Move to base", Zone::Base(o), "top"));
-            v.push(mv("Banish", Zone::Banish(o), "top"));
+            if g.autopay {
+                v.push(Item { cls: "c2", tip: "Play it without spending runes".into(), ..it("Play free", "c-play-free", id.to_string()) });
+            }
+            v.push(Item { cls: if g.autopay { "c2" } else { "" }, tip: if c.shown { "Hide it from your opponent again".into() } else { "Show it to your opponent".into() }, ..it(if c.shown { "Unreveal" } else { "Reveal" }, "c-reveal", id.to_string()) });
+            v.push(it("Move to", "", ""));
+            v.push(Item { cls: "c3", ..mv("Trash", Zone::Trash(o), "top") });
+            v.push(Item { cls: "c3", ..mv("Base", Zone::Base(o), "top") });
+            v.push(Item { cls: "c3", ..mv("Banish", Zone::Banish(o), "top") });
+            v.push(Item { cls: "c2", ..mv("Deck top", Zone::Deck(o), "top") });
+            v.push(Item { cls: "c2", ..mv("Deck bottom", Zone::Deck(o), "bottom") });
         }
         Zone::Base(_) | Zone::Bf(_, _) | Zone::Legend(_) | Zone::Champion(_) => {
             if matches!(c.zone, Zone::Champion(_)) && mine {
@@ -525,7 +552,7 @@ fn card_menu_items(db: &CardDb, g: &GameUi, id: CardId) -> (String, Vec<Item>) {
         Zone::BfCard(b) => return bf_items(g, b),
         _ => {}
     }
-    v.push(it("Ping for opponent", "c-ping", id.to_string()));
+    v.push(Item { cls: "foot", tip: "Highlight this card for your opponent".into(), ..it("Ping for opponent", "c-ping", id.to_string()) });
     (title, v)
 }
 
@@ -685,9 +712,35 @@ fn menu_html(db: &CardDb, g: &GameUi, m: &Menu) -> String {
     if g.spectator() && !matches!(m.kind, MenuKind::Game) {
         return String::new();
     }
-    let body: String = items.iter().map(|i| format!("<button class=\"mi {}\" data-act=\"{}\" data-arg=\"{}\">{}</button>", i.cls, esc(&i.act), esc(&i.arg), esc(&i.label))).collect();
-    let (x, y) = (m.x.max(8.0), m.y.max(8.0));
-    format!("<div class=\"ctx\" style=\"left:{x:.0}px;top:{y:.0}px\" id=\"ctx\"><div class=\"ctx-t\">{}</div><div class=\"ctx-b\">{body}</div></div>", esc(&title))
+    let button = |i: &Item| {
+        let tip = if i.tip.is_empty() { String::new() } else { format!(" title=\"{0}\" aria-label=\"{0}\"", esc(&i.tip)) };
+        let badge = if i.badge.is_empty() { String::new() } else { format!("<span class=\"mi-b\" aria-hidden=\"true\">{}</span>", esc(&i.badge)) };
+        format!("<button class=\"mi {}\" data-act=\"{}\" data-arg=\"{}\"{tip}>{}{badge}</button>", i.cls, esc(&i.act), esc(&i.arg), esc(&i.label))
+    };
+    let mut body = String::new();
+    let mut k = 0;
+    while k < items.len() {
+        let i = &items[k];
+        k += 1;
+        if i.act.is_empty() && i.cls == "inl" {
+            // "Play at  [A] [B]": the label and its lane buttons on one line.
+            let mut row = format!("<div class=\"mi-row\"><span class=\"mi-l\">{}</span>", esc(&i.label));
+            while k < items.len() && items[k].cls == "bf" {
+                row += &button(&items[k]);
+                k += 1;
+            }
+            body += &(row + "</div>");
+        } else if i.act.is_empty() {
+            body += &format!("<div class=\"mi-l\">{}</div>", esc(&i.label));
+        } else {
+            body += &button(i);
+        }
+    }
+    let pos = match m.bottom {
+        Some(b) => format!("left:{:.0}px;bottom:{b:.0}px", m.x.max(8.0)),
+        None => format!("left:{:.0}px;top:{:.0}px", m.x.max(8.0), m.y.max(8.0)),
+    };
+    format!("<div class=\"ctx\" style=\"{pos}\" id=\"ctx\" role=\"menu\" aria-label=\"{t}\"><div class=\"ctx-t\">{t}</div><div class=\"ctx-b\">{body}</div></div>", t = esc(&title))
 }
 
 fn overlay_html(db: &CardDb, g: &GameUi) -> String {
@@ -975,7 +1028,22 @@ fn open_menu(app: &mut App, kind: MenuKind, x: f64, y: f64) {
     }
     let w = dom::window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1200.0);
     let h = dom::window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(800.0);
-    g.menu = Some(Menu { kind, x: (x + 12.0).min(w - 250.0), y: (y - 20.0).min(h - 420.0) });
+    // A hand card's menu sits beside the raised card, its bottom just above the
+    // hand, so it covers neither the card nor its neighbours.
+    let hand = match kind {
+        MenuKind::Card(id) if matches!(g.view.game.card(id).map(|c| c.zone), Some(Zone::Hand(_))) => dom::document().query_selector(&format!(".hc[data-hand=\"{id}\"]")).ok().flatten(),
+        _ => None,
+    };
+    g.menu = Some(match hand.map(|e| e.get_bounding_client_rect()) {
+        Some(r) => {
+            let mid = r.left() + r.width() / 2.0;
+            // The raised card is scaled 1.2 about its bottom centre.
+            let right = mid + r.width() * 0.6 + 10.0;
+            let x = if right + 240.0 <= w { right } else { mid - r.width() * 0.6 - 250.0 };
+            Menu { kind, x: x.clamp(8.0, w - 250.0), y: 0.0, bottom: Some(h - r.top() + 16.0) }
+        }
+        None => Menu { kind, x: (x + 12.0).min(w - 250.0), y: (y - 20.0).min(h - 420.0), bottom: None },
+    });
     app.render();
 }
 
@@ -1140,6 +1208,12 @@ pub fn handle(app: &mut App, act: &str, arg: &str, ev: &MouseEvent) {
         // card actions
         "c-play" => app.act(Action::PlayCard { card: id, to: None, autopay }),
         "c-play-free" => app.act(Action::PlayCard { card: id, to: None, autopay: false }),
+        "c-play-at" => {
+            let b: u8 = p1.parse().unwrap_or(0);
+            let owner = g.view.game.card(id).map(|c| c.owner).unwrap_or(me);
+            app.act(Action::PlayCard { card: id, to: Some(Zone::Bf(b, owner)), autopay });
+        }
+        "c-hide-at" => app.act(Action::Hide { card: id, bf: p1.parse().unwrap_or(0) }),
         "c-target" => {
             let kind = match p1 {
                 "play" => TargetKind::Play,

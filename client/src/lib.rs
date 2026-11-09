@@ -5,6 +5,7 @@ pub mod board;
 pub mod dom;
 pub mod gfx;
 pub mod name;
+pub mod route;
 pub mod icons;
 pub mod math;
 pub mod net;
@@ -114,7 +115,14 @@ fn boot(db: CardDb) {
         let t: web_sys::EventTarget = c.into();
         dom::listen::<MouseEvent>(&t, "contextmenu", |e| e.prevent_default());
     }
-    with_app(|a| a.render());
+    let win: web_sys::EventTarget = dom::window().into();
+    dom::listen::<Event>(&win, "popstate", |_| {
+        with_app(route::on_popstate);
+    });
+    with_app(|a| {
+        route::boot(a);
+        a.render();
+    });
     net::connect(app::hello);
     // Animation loop.
     let f: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));

@@ -332,9 +332,14 @@ details textarea { margin: 6px 0; }
    spread and the rotation. CSS does the maths, so window resizes refit it. */
 .hc { --step: clamp(16px, (100vw - 800px) / var(--n1, 1), 90px);
   width: 118px; aspect-ratio: 744/1039; margin: 0 calc((var(--step) - 118px) / 2); transform: translateY(calc(42% + var(--y))) rotate(var(--r)); transform-origin: 50% 120%; transition: transform .14s ease-out, margin .14s; cursor: grab; position: relative; touch-action: none; }
+/* .hc stays put (it is the hover target); .hc-c is the card that rises. If the
+   hover target rose with the card, a pointer near its bottom edge would fall off,
+   drop it, and catch it again in a loop. The risen card still counts as hovering. */
+.hc-c { width: 100%; height: 100%; transition: transform .14s ease-out; transform-origin: 50% 100%; }
 .hc img, .hc .back { width: 100%; height: 100%; border-radius: 6px; display: block; box-shadow: 0 6px 14px rgba(0, 0, 0, .6); user-select: none; -webkit-user-drag: none; }
-.hc:hover { transform: translateY(-12%) scale(1.2); z-index: 10; margin: 0 min(6px, calc((var(--step) - 118px) / 2 + 30px)); }
-.hc.sel img { outline: 3px solid #fff; }
+.hc:hover, .hc.open { z-index: 10; margin: 0 min(6px, calc((var(--step) - 118px) / 2 + 30px)); }
+.hc:hover .hc-c, .hc.open .hc-c { transform: rotate(calc(-1 * var(--r))) translateY(-44%) scale(1.2); }
+.hc.sel img, .hc.open img { outline: 3px solid #fff; }
 .hc.shown::after { content: "Revealed"; position: absolute; top: 4px; left: 50%; transform: translateX(-50%); font: 600 12px var(--cond); background: #000; border: 1px solid var(--line); padding: 0 6px; border-radius: 3px; }
 .back { border: 2px solid #b9a26a; background: radial-gradient(circle at 50% 50%, transparent 0 22%, rgba(222, 186, 104, .75) 23% 25%, transparent 26% 33%, rgba(222, 186, 104, .55) 34% 35%, transparent 36%), linear-gradient(160deg, #0e2a52, #050c1d); }
 .opphand { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); display: flex; }
@@ -408,6 +413,22 @@ details textarea { margin: 6px 0; }
 .mi.hi { font-weight: 600; }
 .mi.row3 { flex: 1 1 46%; text-align: center; background: #000; font-size: 14px; }
 .mi.danger { color: #ff7d8c; }
+/* Compact buttons, two or three to a row (secondary card actions). */
+.mi.c2, .mi.c3 { flex: 1 1 calc(50% - 2px); text-align: center; background: #000; border-color: var(--line2); padding: 4px 6px; white-space: nowrap; }
+.mi.c3 { flex-basis: calc(33.3% - 2px); }
+.mi.c2:hover, .mi.c3:hover { border-color: #fff; }
+.mi-l { flex: 1 1 100%; padding: 6px 9px 0; font-size: 12px; color: var(--dim); }
+/* "Play at  [A] [B]": label and lane buttons on one line. */
+.mi-row { flex: 1 1 100%; display: flex; align-items: center; gap: 2px; }
+.mi-row .mi-l { flex: 0 0 64px; padding: 0 0 0 9px; }
+.mi.bf { flex: 1 1 0; text-align: center; background: #000; border-color: var(--line2); padding: 4px 6px; font: 600 16px var(--num); }
+.mi.bf:hover { border-color: #fff; }
+/* The play button's cost. */
+.mi.hi { display: flex; align-items: center; justify-content: space-between; }
+.mi-b { min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; display: inline-grid; place-items: center; background: #fff; color: #000; font: 700 14px var(--num); }
+/* Rare actions: a quiet footer link. */
+.mi.foot { margin-top: 4px; border-top: 1px solid var(--line2); border-radius: 0 0 4px 4px; color: var(--dim); font-size: 12px; text-align: center; }
+.mi.foot:hover { color: var(--ink); }
 
 /* Dialogs after GUI_CommonWindowS: rounded window, grey frame, title over a thin rule. */
 .modal-bg { position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, .66); display: grid; place-items: center; }
@@ -589,7 +610,7 @@ input:not([type=checkbox]):not([type=radio]):focus-visible, select:focus-visible
   .tool { height: 40px; }
   .tool .tl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .hc { --step: clamp(14px, (100vw - 140px) / var(--n1, 1), 60px); width: 84px; margin: 0 calc((var(--step) - 84px) / 2); }
-  .hc:hover { margin: 0 min(4px, calc((var(--step) - 84px) / 2 + 20px)); }
+  .hc:hover, .hc.open { margin: 0 min(4px, calc((var(--step) - 84px) / 2 + 20px)); }
   .hand { padding: 0 8px; height: 120px; bottom: env(safe-area-inset-bottom); }
   .topbar { height: calc(52px + env(safe-area-inset-top)); }
   .bottom-nav { height: calc(58px + env(safe-area-inset-bottom)); }
@@ -600,7 +621,7 @@ input:not([type=checkbox]):not([type=radio]):focus-visible, select:focus-visible
   /* Tap a card: its details show top-left; the card menu becomes a bottom sheet. */
   .g-preview { display: block; left: 8px; top: calc(100px + env(safe-area-inset-top)); width: min(46vw, 200px); max-height: 46vh; }
   .g-preview:empty { display: none; }
-  .ctx { left: 8px !important; right: 8px; top: auto !important; bottom: calc(8px + env(safe-area-inset-bottom)); width: auto; max-height: 60vh; }
+  .ctx { left: 8px !important; right: 8px; top: auto !important; bottom: calc(8px + env(safe-area-inset-bottom)) !important; width: auto; max-height: 60vh; }
   .chain { display: flex; right: 8px; top: calc(150px + env(safe-area-inset-top)); }
   .chn { min-width: 0; max-width: 46vw; }
   .reveal { display: flex; left: 8px; right: 8px; top: auto; bottom: 250px; overflow-x: auto; }
@@ -630,7 +651,7 @@ input:not([type=checkbox]):not([type=radio]):focus-visible, select:focus-visible
   .hand { height: 96px; }
   .hc { --step: clamp(14px, (100vw - 420px) / var(--n1, 1), 56px); width: 66px; margin: 0 calc((var(--step) - 66px) / 2); }
   .chain { right: 120px; top: 30%; }
-  .ctx { top: 8px !important; bottom: auto; max-height: calc(100vh - 16px); }
+  .ctx { top: 8px !important; bottom: auto !important; max-height: calc(100vh - 16px); }
 }
 
 /* 2v2 / free-for-all lobby */

@@ -10,6 +10,7 @@ card images and names belong to Riot Games.
 
 - 1v1 (Bo1/Bo3), 2v2 and 3–4 player free-for-all
 - Private rooms, public room list, matchmaking, spectators and chat. No accounts: players type a name when they join a lobby
+- Every page has its own URL (`/decks`, `/decks/<id>`, `/room/<code>`, ...): reload, back and forward keep your place, and a room link is the invite
 - Deck builder, Piltover Archive / RiftAtlas deck code import and export, sealed pools
 - Riot's preconstructed decks as starters
 - Solo play and goldfish, offline as an installable app

@@ -152,20 +152,25 @@ fn deck_options(app: &App, selected: Option<&str>, include_sealed: bool) -> Stri
     s
 }
 
-fn top_bar(title: &str) -> String {
+fn top_bar(app: &App, title: &str) -> String {
+    // In a room but looking at another page: one click back.
+    let back = match &app.room {
+        Some(r) if app.screen != Screen::Lobby => format!("<button class=\"btn sm\" data-act=\"to-room\">Back to room {}</button>", esc(&r.code)),
+        _ => String::new(),
+    };
     format!(
-        "<header class=\"topbar\"><div class=\"logo\" data-act=\"tab\" data-arg=\"Duel\">Rift Showdown</div><div class=\"tb-title\">{}</div></header>",
+        "<header class=\"topbar\"><div class=\"logo\" data-act=\"tab\" data-arg=\"Duel\">Rift Showdown</div><div class=\"tb-title\">{}</div>{back}</header>",
         esc(title)
     )
 }
 
 pub fn render(app: &mut App, force: bool) {
     let html = match app.screen {
-        Screen::Home(Tab::Duel) => format!("{}<main class=\"home play\">{}</main>{}", top_bar("Duel"), duel_tab(app), nav(app)),
-        Screen::Home(Tab::Solo) => format!("{}<main class=\"home\">{}</main>{}", top_bar("Solo"), solo_tab(app), nav(app)),
-        Screen::Home(Tab::Sealed) => format!("{}<main class=\"home\">{}</main>{}", top_bar("Sealed"), sealed_tab(app), nav(app)),
-        Screen::Home(Tab::Decks) => format!("{}<main class=\"home\">{}</main>{}", top_bar("Decks"), decks_tab(app), nav(app)),
-        Screen::Home(Tab::Rooms) => format!("{}<main class=\"home\">{}</main>{}", top_bar("Rooms"), rooms_tab(app), nav(app)),
+        Screen::Home(Tab::Duel) => format!("{}<main class=\"home play\">{}</main>{}", top_bar(app, "Duel"), duel_tab(app), nav(app)),
+        Screen::Home(Tab::Solo) => format!("{}<main class=\"home\">{}</main>{}", top_bar(app, "Solo"), solo_tab(app), nav(app)),
+        Screen::Home(Tab::Sealed) => format!("{}<main class=\"home\">{}</main>{}", top_bar(app, "Sealed"), sealed_tab(app), nav(app)),
+        Screen::Home(Tab::Decks) => format!("{}<main class=\"home\">{}</main>{}", top_bar(app, "Decks"), decks_tab(app), nav(app)),
+        Screen::Home(Tab::Rooms) => format!("{}<main class=\"home\">{}</main>{}", top_bar(app, "Rooms"), rooms_tab(app), nav(app)),
         Screen::Editor => {
             if force || by_id("ed-results").is_none() {
                 dom::force_html("screen", &editor_shell(app));
@@ -176,7 +181,7 @@ pub fn render(app: &mut App, force: bool) {
         }
         Screen::Lobby => {
             if force || by_id("lobby-main").is_none() {
-                dom::force_html("screen", &format!("{}{}", top_bar("Room"), lobby_shell()));
+                dom::force_html("screen", &format!("{}{}", top_bar(app, "Room"), lobby_shell()));
                 app.render_chat_inline();
             }
             set_html("lobby-main", &lobby_main(app));
@@ -500,7 +505,7 @@ fn editor_shell(app: &App) -> String {
  <div class="ed-head"><input id="ed-name" value="{name}" placeholder="Deck name" data-input="ed-name"><div class="row"><button class="btn primary" data-act="ed-save">Save</button><button class="btn" data-act="ed-code">Copy code</button><button class="btn" data-act="ed-text">Copy list</button><button class="btn ghost" data-act="ed-back">Back</button></div></div>
  <div id="ed-deck" class="ed-deck"></div>
 </section></div>"#,
-        top = top_bar(if e.pool.is_some() { "Sealed deck" } else { "Edit deck" }),
+        top = top_bar(app, if e.pool.is_some() { "Sealed deck" } else { "Edit deck" }),
         q = esc(&e.query),
         t = sel("ed-type", &types, &e.ftype),
         d = sel("ed-dom", &doms, &e.fdomain),
@@ -864,11 +869,11 @@ pub fn handle(app: &mut App, act: &str, arg: &str, shift: bool) -> bool {
             app.toast(if act == "copy" { "Room code copied." } else { "Seed copied." }, false);
         }
         "copy-invite" => {
-            dom::copy_text(&format!("{}/?room={arg}", dom::origin()));
+            dom::copy_text(&format!("{}/room/{arg}", dom::origin()));
             app.toast("Invite link copied.", false);
         }
         "copy-spec" => {
-            dom::copy_text(&format!("{}/?room={arg}&spectate=1", dom::origin()));
+            dom::copy_text(&format!("{}/room/{arg}?spectate=1", dom::origin()));
             app.toast("Spectator link copied.", false);
         }
         "close-modal" => {
@@ -1134,6 +1139,10 @@ pub fn handle(app: &mut App, act: &str, arg: &str, shift: bool) -> bool {
         // ---- lobby
         "leave-room" => {
             net::send(&ClientMsg::LeaveRoom);
+        }
+        "to-room" => {
+            let live = app.room.as_ref().is_some_and(|r| r.in_game) && app.game.as_ref().is_some_and(|g| !g.is_local());
+            app.go(if live { Screen::Game } else { Screen::Lobby });
         }
         "to-game" => {
             if app.game.is_some() {

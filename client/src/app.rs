@@ -96,6 +96,9 @@ pub struct Menu {
     pub kind: MenuKind,
     pub x: f64,
     pub y: f64,
+    /// Hand cards: the menu's bottom edge sits this far above the window bottom
+    /// (just above the hand), and `y` is unused.
+    pub bottom: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -227,6 +230,12 @@ pub struct App {
     pub dirty: bool,
     pub frames: u64,
     pub names: crate::name::NameUi,
+    /// A room page is loading: keep its URL until the server says where we are.
+    pub route_hold: Option<String>,
+    /// This page asked to create, join, watch or search: open the room when it comes.
+    /// Without it, a Room message (say, the server resuming our seat after a
+    /// reload on /decks) updates the room in the background and keeps the page.
+    pub joining: bool,
 }
 
 const DECKS_KEY: &str = "rift.decks.v1";
@@ -284,7 +293,7 @@ impl App {
             screen: Screen::Home(Tab::Duel),
             name,
             my_id: 0,
-            token: None,
+            token: crate::route::saved_token(),
             connected: false,
             decks,
             editor: EditorState { limit: 120, ..Default::default() },
@@ -304,6 +313,8 @@ impl App {
             dirty: true,
             frames: 0,
             names: Default::default(),
+            route_hold: None,
+            joining: false,
         };
         app.save_decks();
         app
@@ -355,14 +366,11 @@ impl App {
         match m {
             ServerMsg::Welcome { id, token, name } => {
                 self.my_id = id;
+                let resumed = self.token.as_deref() == Some(token.as_str());
+                crate::route::save_token(&token);
                 self.token = Some(token);
                 self.name = name;
-                // Invite links ask for a name, then join.
-                if let Some(code) = dom::query_param("room") {
-                    let spec = dom::query_param("spectate").is_some();
-                    let _ = dom::window().history().map(|h| h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/")));
-                    crate::name::ask(self, ClientMsg::JoinRoom { code, spectate: spec });
-                }
+                crate::route::on_welcome(self, resumed);
                 self.dirty = true;
                 self.render();
             }
@@ -380,7 +388,14 @@ impl App {
                 self.dirty = true;
                 self.render();
             }
-            ServerMsg::Error { message } => self.toast(&message, true),
+            ServerMsg::Error { message } => {
+                // A join from a room URL failed (no such room, full): leave that URL.
+                if self.joining && self.route_hold.is_some() {
+                    self.joining = false;
+                    crate::route::release(self);
+                }
+                self.toast(&message, true);
+            }
             ServerMsg::Info { message } => self.toast(&message, false),
             ServerMsg::Room { room } => {
                 let entering = self.room.as_ref().map(|r| r.code != room.code).unwrap_or(true);
@@ -388,14 +403,18 @@ impl App {
                     self.chat.clear();
                 }
                 let in_game = room.in_game;
+                let requested = entering && (self.joining || self.route_hold.as_deref() == Some(room.code.as_str()));
+                if entering {
+                    self.joining = false;
+                }
+                crate::route::on_room(self, &room.code);
                 self.room = Some(room);
-                if !in_game {
-                    if self.game.as_ref().map(|g| !g.is_local()).unwrap_or(false) {
-                        self.game = None;
-                    }
-                    if self.screen != Screen::Editor && self.game.is_none() {
-                        self.screen = Screen::Lobby;
-                    }
+                let watching_match = self.screen == Screen::Game && self.game.as_ref().is_some_and(|g| !g.is_local());
+                if !in_game && self.game.as_ref().map(|g| !g.is_local()).unwrap_or(false) {
+                    self.game = None;
+                }
+                if requested || (watching_match && !in_game) {
+                    self.screen = Screen::Lobby;
                 }
                 self.queue = None;
                 self.dirty = true;
@@ -459,7 +478,9 @@ impl App {
             }
         }
         self.after_view_change();
-        if self.screen != Screen::Game {
+        // A match starting in the lobby opens the table; elsewhere it waits for the
+        // player (the Duel tab and the room page offer a way back).
+        if self.screen == Screen::Lobby {
             self.screen = Screen::Game;
             self.dirty = true;
         }
@@ -678,6 +699,7 @@ impl App {
         self.render_queue();
         self.render_toasts();
         crate::name::render_dialog(self);
+        crate::route::sync(self);
     }
 
     pub fn render_toasts(&mut self) {
