@@ -24,7 +24,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tower_http::services::{ServeDir, ServeFile};
-use tower_http::set_header::SetResponseHeaderLayer;
+use tower_http::set_header::{SetResponseHeader, SetResponseHeaderLayer};
 
 const IMG_HOST: &str = "https://cmsassets.rgpub.io/";
 /// League champion splash art from Riot's Data Dragon CDN (home screen hero). Served as-is.
@@ -71,7 +71,9 @@ pub fn load_state(cfg: &Config) -> Result<AppState, String> {
 
 pub fn router(state: AppState, dist: PathBuf) -> Router {
     let index = dist.join("index.html");
-    let statics = ServeDir::new(&dist).fallback(ServeFile::new(index));
+    // App files keep their names across builds: browsers and CDNs must revalidate
+    // them (cheap 304s via Last-Modified) instead of keeping a stale copy for hours.
+    let statics = SetResponseHeader::if_not_present(ServeDir::new(&dist).fallback(ServeFile::new(index)), header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
     Router::new()
         .route("/ws", get(ws_handler))
         .route("/cards.json", get(cards_handler))
