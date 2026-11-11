@@ -524,12 +524,61 @@ await step('phone: touch tap opens the card menu, portrait table, landscape HUD'
   assert.equal(await p.$eval('#screen', (e) => e.scrollTop), 0);
   await p.screenshot({ path: 'screenshots/30-phone-menu.png' });
   await p.tap('#ctx .mi');
+  const box2 = async s => (await p.$(s)).boundingBox();
+  // The top bar is one line and ends above the tool row.
+  const top = await box2('.g-top');
+  assert.ok(top.height <= 44 && top.y + top.height <= (await box2('.tools')).y, `top bar ${JSON.stringify(top)}`);
+  // The log and chat panel starts closed, opens on a tap and stays on screen.
+  assert.equal(await p.$eval('#g-sidepanel', e => e.className), 'sidepanel hidden');
+  await p.tap('#g-tabs [data-arg=hide]');
+  await p.waitForSelector('#g-log .ll');
+  const panel = await box2('#g-sidepanel');
+  assert.ok(panel.x >= 0 && panel.x + panel.width <= vp.width && panel.y + panel.height <= vp.height, `panel ${JSON.stringify(panel)}`);
+  await p.tap('#g-tabs [data-arg=hide]');
   await p.setViewportSize({ width: 915, height: 412 });
   await p.waitForTimeout(400);
   const tools = await (await p.$('.tools')).boundingBox();
   const phase = await (await p.$('.ph-btn')).boundingBox();
   assert.ok(tools.y + tools.height <= phase.y, 'tools sit above the phase button');
+
   await p.screenshot({ path: 'screenshots/31-phone-landscape.png' });
+  await ctx.close();
+});
+
+await step('small phone: two-seat solo HUD parts do not overlap, upright and sideways', async () => {
+  const ctx = await browser.newContext({ ...devices['Pixel 7'], viewport: { width: 375, height: 667 } });
+  const p = await ctx.newPage();
+  const box = async s => (await p.$(s)).boundingBox();
+  const below = (a, b) => a.y + a.height <= b.y + 0.5;
+  await p.goto(`${BASE}/`);
+  await p.waitForSelector('.hero-art');
+  await p.tap('[data-arg=Solo]');
+  await p.tap('[data-act=solo-play]');
+  for (let i = 0; i < 2; i++) { await p.waitForSelector('.bfopt'); await p.tap('.bfopt'); }
+  await p.waitForSelector('[data-act=setup-order]');
+  await p.tap('[data-act=setup-order][data-arg=first]');
+  await p.waitForSelector('[data-act=mull-confirm]');
+  // The "Acting as" buttons fit on the top bar, and the dialog title is not under it.
+  const top = await box('.g-top');
+  const acting = await p.$$eval('.g-top .acting .btn', b => b.map(e => e.getBoundingClientRect().right));
+  assert.ok(acting.every(r => r <= 375), `acting buttons end at ${acting}`);
+  assert.ok(below(top, await box('.dlg-t')), 'mulligan title below the top bar');
+  await p.tap('[data-act=mull-confirm]');
+  await p.waitForTimeout(300);
+  await p.tap('[data-act=mull-confirm]');
+  await until(p, () => window.__state().game.stage === 'Play');
+  await p.waitForTimeout(500);
+  assert.ok(below(await box('.g-top'), await box('.tools')), 'top bar above the tools');
+  assert.ok(below(await box('.tools'), await box('#g-opp')), 'tools above the opponent plate');
+  assert.ok(below(await box('#g-opp'), await box('.opphand')), "opponent's hand under their plate");
+  await p.setViewportSize({ width: 844, height: 390 });
+  await p.waitForTimeout(400);
+  assert.ok(below(await box('#g-opp'), await box('.tools')), 'sideways: opponent plate above the tools');
+  assert.ok(below(await box('.tools'), await box('.ph-btn')), 'sideways: tools above the phase button');
+  // Items are centred on the line, so their tops differ by a few pixels; a second line would add 30 or more.
+  const tops = await p.$$eval('.g-top > *', els => els.filter(e => e.offsetParent).map(e => e.offsetTop));
+  assert.ok(Math.max(...tops) - Math.min(...tops) < 12, `sideways: top bar on one line (${tops})`);
+  await p.screenshot({ path: 'screenshots/32-phone-solo-landscape.png' });
   await ctx.close();
 });
 
