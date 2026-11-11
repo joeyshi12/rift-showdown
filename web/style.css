@@ -371,7 +371,8 @@ details textarea { margin: 6px 0; }
 .tool .tl { font: 500 14px var(--cond); color: var(--dim); white-space: nowrap; }
 
 .sidepanel { position: absolute; right: 12px; top: 104px; width: 300px; height: 34vh; display: flex; flex-direction: column; background: var(--fill); border: 2px solid var(--line2); border-radius: 8px; overflow: hidden; }
-.sidepanel.hidden { height: 38px; width: 110px; }
+.sidepanel.hidden { height: 38px; width: auto; }
+.sidepanel.hidden .tabs button:last-child { padding: 7px 14px; white-space: nowrap; }
 .sidepanel.hidden .log, .sidepanel.hidden .g-chat { display: none; }
 .tabs { display: flex; border-bottom: 1px solid var(--line2); }
 .tabs button { flex: 1; background: none; border: 0; padding: 7px 4px; cursor: pointer; font: 600 16px var(--cond); color: var(--dim); border-bottom: 3px solid transparent; }
@@ -549,7 +550,30 @@ input:not([type=checkbox]):not([type=radio]):focus-visible, select:focus-visible
   .ed-preview { display: none; }
   .lobby, .lobby-cols, .sealed-wrap, .seats { grid-template-columns: 1fr; }
   .plate.opp { right: 12px; top: 60px; }
-  .sidepanel { display: none; }
+  /* The log and chat panel opens over the top left of the table; closed it is one button. */
+  /* z-index: over the table HUD, under dialogs (25) and the top bar (27). */
+  .sidepanel { left: 14px; right: auto; top: 64px; width: 320px; height: 40vh; z-index: 24; }
+  /* Keep the top bar on one line: the phase button already names the phase. */
+  .g-top .pill-l { display: none; }
+  .hud:has(.phase:not(:empty)) .ph-pill { display: none; }
+}
+
+/* Tablets held upright: the table ends well above the bottom, so the player plate,
+   phase button and tools go up there and the hand gets the full width. */
+@media (max-width: 1100px) and (min-width: 641px) and (min-height: 501px) and (orientation: portrait) {
+  .plate.me { bottom: 110px; }
+  .tools { bottom: 110px; }
+  .phase { top: auto; bottom: 110px; left: 50%; right: auto; transform: translateX(-50%); }
+  .ph-list { display: none; }
+  .ph-btn { width: 104px; height: 104px; }
+  .hc { --step: clamp(16px, (100vw - 200px) / var(--n1, 1), 90px); }
+}
+/* Tablets held sideways: the table reaches the right edge at the bottom, so the phase
+   button goes higher up, between the opponent plate and the deck piles. */
+@media (max-width: 1100px) and (min-width: 641px) and (min-height: 501px) and (orientation: landscape) {
+  .phase { top: 170px; right: 12px; }
+  .ph-list { display: none; }
+  .ph-btn { width: 104px; height: 104px; }
 }
 
 /* ---------- phones ---------- */
@@ -593,7 +617,15 @@ input:not([type=checkbox]):not([type=radio]):focus-visible, select:focus-visible
   #toasts, #queue { right: 12px; bottom: 70px; }
   /* Duel: the 3D table fills the screen, the HUD shrinks to the essentials. */
   .g-preview, .reveal, .chain { display: none; }
-  .g-top { top: 8px; left: 8px; gap: 6px; max-width: calc(100vw - 16px); }
+  /* One line, so it never runs into the tools below; if it is still too wide it scrolls. */
+  .g-top { top: 8px; left: 8px; gap: 6px; max-width: calc(100vw - 16px); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .g-top::-webkit-scrollbar { display: none; }
+  .g-top > * { flex: none; }
+  .g-top .pill { padding: 3px 6px; }
+  .g-top .acting .btn { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 10px; }
+  /* Help lists keyboard shortcuts; it stays in the menu. The phase shows on the
+     phase button, and during setup the open dialog says so. */
+  .g-top .help, .g-top .ph-pill { display: none; }
   .ib { width: 34px; height: 34px; }
   .plate { min-width: 0; padding: 4px 12px 4px 4px; gap: 8px; }
   .plate.me { left: 8px; bottom: 128px; }
@@ -629,6 +661,31 @@ input:not([type=checkbox]):not([type=radio]):focus-visible, select:focus-visible
   .g-top { top: calc(8px + env(safe-area-inset-top)); }
   .tools { top: calc(52px + env(safe-area-inset-top)); }
   .banner { top: calc(150px + env(safe-area-inset-top)); max-width: 94vw; }
+  /* The opponent's hand sits under their plate instead of behind the top bar. */
+  .opphand { left: auto; right: 8px; top: calc(164px + env(safe-area-inset-top)); transform: none; }
+  .ohc { width: 26px; margin: 0 -4px; }
+  .ohc img, .ohc .back { border-radius: 2px; }
+  /* Dialogs start below the top bar so it does not cover their titles. */
+  .hud .modal-bg { padding: calc(50px + env(safe-area-inset-top)) 0 calc(8px + env(safe-area-inset-bottom)); }
+  .hud .dialog { max-height: 100%; }
+  .sidepanel { left: 8px; top: calc(100px + env(safe-area-inset-top)); width: auto; right: 8px; height: 42vh; }
+  .sidepanel.hidden { right: auto; }
+  /* Card details go under the closed log and chat button. */
+  .g-preview { top: calc(146px + env(safe-area-inset-top)); max-height: 40vh; }
+  /* Lobby: one scrolling page, chat last, instead of two boxes that split the height. */
+  .lobby { display: flex; flex-direction: column; overflow: auto; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .lobby-main { overflow: visible; flex: none; }
+  .panel.chat { flex: none; height: 300px; }
+  /* Editor: filters in two columns so more of the card list shows. */
+  .ed-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 10px; }
+  .ed-filters #ed-q { grid-column: 1; }
+  .ed-filters select { width: 100%; min-width: 0; }
+  .ed-filters label.chk { grid-column: 2; grid-row: 1; }
+  .editor { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 42%); }
+  .ed-head { padding: 8px 10px; gap: 6px; }
+  .ed-head input { font-size: 18px; padding: 4px 10px; }
+  .ed-head .btn { padding: 5px 12px; }
+  .ed-deck { padding: 6px 10px 24px; }
 }
 
 /* Phones held sideways: short screen, so the HUD shrinks like on a portrait phone. */
@@ -637,7 +694,8 @@ input:not([type=checkbox]):not([type=radio]):focus-visible, select:focus-visible
   .bottom-nav { height: 50px; }
   .home { top: 46px; bottom: 50px; }
   .hero-deck h1 { font-size: 38px; }
-  .g-preview { width: 150px; top: 52px; max-height: 58vh; }
+  /* Below the top bar and the closed log and chat button. */
+  .g-preview { width: 150px; top: 96px; max-height: calc(100vh - 200px); }
   .g-preview:empty { display: none; }
   .plate { min-width: 0; padding: 4px 12px 4px 4px; }
   .pl-ava { width: 36px; height: 36px; font-size: 18px; }
@@ -645,8 +703,18 @@ input:not([type=checkbox]):not([type=radio]):focus-visible, select:focus-visible
   .ph-list { display: none; }
   .phase { top: auto; bottom: 64px; right: 12px; }
   .ph-btn { width: 76px; height: 76px; }
-  .tools { grid-template-columns: repeat(2, 40px); top: 70px; bottom: auto; right: 12px; }
-  .tool { height: 36px; }
+  /* Opponent plate in the corner, tools in three columns under it, phase button below. */
+  .plate.opp { top: 8px; right: 12px; }
+  .pl-score b { font-size: 28px; }
+  .tools { grid-template-columns: repeat(3, 40px); gap: 4px; top: 78px; bottom: auto; right: 12px; }
+  .tool { height: 34px; }
+  .g-top { top: 8px; flex-wrap: nowrap; max-width: calc(100vw - 300px); }
+  .ib { width: 34px; height: 34px; }
+  .g-top .help { display: none; }
+  .ohc { width: 44px; }
+  .sidepanel { left: 12px; top: 52px; width: 300px; height: calc(100vh - 140px); }
+  .hud .modal-bg { padding: 48px 0 8px; }
+  .hud .dialog { max-height: 100%; }
   .tool .tl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .hand { height: 96px; }
   .hc { --step: clamp(14px, (100vw - 420px) / var(--n1, 1), 56px); width: 66px; margin: 0 calc((var(--step) - 66px) / 2); }
@@ -710,3 +778,15 @@ input:not([type=checkbox]):not([type=radio]):focus-visible, select:focus-visible
 .targetbar:empty { display: none; }
 .tg { display: flex; align-items: center; gap: 12px; padding: 7px 10px 7px 16px; background: var(--fill2); border: 2px solid var(--lime); border-radius: 8px; font-size: 15px; box-shadow: 0 6px 18px rgba(0, 0, 0, .6); }
 @media (max-width: 640px) { .targetbar { left: 8px; right: 8px; transform: none; bottom: calc(150px + env(safe-area-inset-bottom)); } .tg { flex-wrap: wrap; justify-content: center; } }
+
+/* Touch screens: bigger targets for the small buttons and links. */
+@media (pointer: coarse) {
+  .drow { padding: 2px 4px; }
+  .drow .mini { min-width: 36px; height: 34px; font-size: 16px; }
+  .dc-btns { gap: 0 14px; }
+  .dc-btns .lnk { padding: 9px 0; }
+  .lnk { padding: 6px 0; }
+  .btn.sm { padding: 7px 12px; }
+  input[type=checkbox] { width: 22px; height: 22px; }
+  .mi { padding: 9px 10px; }
+}
