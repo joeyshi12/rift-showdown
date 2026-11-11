@@ -795,7 +795,8 @@ impl GameUi {
             mull_sel: vec![],
             drag: None,
             drop_zone: None,
-            panel: Panel::Log,
+            // Below 1100px the log and chat panel covers part of the table, so it starts closed.
+            panel: if crate::dom::window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1200.0) < 1100.0 { Panel::Hidden } else { Panel::Log },
             autopay,
             side_out: None,
             side_in: None,

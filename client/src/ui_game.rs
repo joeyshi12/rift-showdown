@@ -60,7 +60,7 @@ pub fn render(app: &mut App, force: bool) {
     let phase = if gs.stage == Stage::Play { gs.phase.name() } else { "Setup" };
     let series = if g.view.config.format.wins_needed() > 1 { format!("<span class=\"pill\">Game {}, series {}</span>", g.view.game_no, g.view.wins.iter().map(|w| w.to_string()).collect::<Vec<_>>().join("–")) } else { String::new() };
     let acting = if g.is_local() && two {
-        format!("<span class=\"pill\">Acting as <button class=\"btn sm {}\" data-act=\"acting\" data-arg=\"0\">{}</button><button class=\"btn sm {}\" data-act=\"acting\" data-arg=\"1\">{}</button></span>", if g.acting == 0 { "primary" } else { "ghost" }, esc(&gs.seats[0].name), if g.acting == 1 { "primary" } else { "ghost" }, esc(&gs.seats[1].name))
+        format!("<span class=\"pill acting\"><span class=\"pill-l\">Acting as</span> <button class=\"btn sm {}\" data-act=\"acting\" data-arg=\"0\">{}</button><button class=\"btn sm {}\" data-act=\"acting\" data-arg=\"1\">{}</button></span>", if g.acting == 0 { "primary" } else { "ghost" }, esc(&gs.seats[0].name), if g.acting == 1 { "primary" } else { "ghost" }, esc(&gs.seats[1].name))
     } else {
         String::new()
     };
@@ -77,7 +77,7 @@ pub fn render(app: &mut App, force: bool) {
         _ => String::new(),
     };
     let top = format!(
-        "<button class=\"ib\" data-act=\"game-menu\" title=\"Menu\">{mi}</button><button class=\"ib\" data-act=\"rewind\" title=\"Rewind the last action (Ctrl+Z)\" {rw}>{ui}</button><button class=\"ib\" data-act=\"forward\" title=\"Forward: undo your last Rewind (Ctrl+Y)\" {fw}>{ri}</button><span class=\"turn\">Turn <b>{turn}</b></span><span class=\"pill\">{phase}</span>{mode_pill}{series}{acting}{spec}<button class=\"ib\" data-act=\"help\" title=\"Help\">{hi}</button>",
+        "<button class=\"ib\" data-act=\"game-menu\" title=\"Menu\">{mi}</button><button class=\"ib\" data-act=\"rewind\" title=\"Rewind the last action (Ctrl+Z)\" {rw}>{ui}</button><button class=\"ib\" data-act=\"forward\" title=\"Forward: undo your last Rewind (Ctrl+Y)\" {fw}>{ri}</button><span class=\"turn\">Turn <b>{turn}</b></span><span class=\"pill ph-pill\">{phase}</span>{mode_pill}{series}{acting}{spec}<button class=\"ib help\" data-act=\"help\" title=\"Help\">{hi}</button>",
         mi = icon("menu"),
         ui = icon("undo"),
         ri = icon("redo"),
@@ -303,7 +303,8 @@ pub fn render(app: &mut App, force: bool) {
         "<button class=\"{}\" data-act=\"panel\" data-arg=\"log\">Duel log</button><button class=\"{}\" data-act=\"panel\" data-arg=\"chat\">Chat{unread}</button><button data-act=\"panel\" data-arg=\"hide\">{}</button>",
         if g.panel == Panel::Log { "on" } else { "" },
         if g.panel == Panel::Chat { "on" } else { "" },
-        if g.panel == Panel::Hidden { "Show" } else { "Hide" }
+        // Closed, the panel is only this button, so it carries the unread count.
+        if g.panel == Panel::Hidden { format!("Log &amp; chat{unread}") } else { "Hide".to_string() }
     );
     set_html("g-tabs", &tabs);
     if let Some(p) = by_id("g-sidepanel") {
